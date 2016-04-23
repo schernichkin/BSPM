@@ -1,12 +1,16 @@
-{-# LANGUAGE RecordWildCards #-}
-
 module BSPM.Engine.Local
-    ( BSPM (..)
---    , run
---    , send
---    , spawn
+    ( BSPM ()
+    , Worker ()
+    , getSate
+    , receive
+    , run
+    , send
+    , spawn
     ) where
 
+import BSPM.StateStream ( StateStream(..) )
+import BSPM.Util
+import Control.Comonad.Cofree
 import Control.Concurrent
 import Control.Concurrent.STM.TChan
 import Control.Monad
@@ -29,56 +33,52 @@ import Data.Void
       --    как все воркеры послали vote-halt, текущий шаг считается завершенным и в
       --    очередь всем воркерам следующего шага кладётся сообщение end-recieve
 
--- краевые случаи:
--- 1. Созданный воркер не выполняет никакой работы и сразу завершается. Это приведет
---    к созданию счетчика и сразу сбросу его на 0, что может привести к посылке
---    EndReceive, что не правильно. Т.е. воркер должен в любом случае дождаться
---    EndReceive, даже если он не собирается выполнять никакой работы.
---    Это можно обрабатывать в функции receive, просто делая unGetTChan для
---    сообщений типа EndReceive, в случае форка следует добавлять функцию,
---    которая будет дожидаться EndReceive, возможно пропуская сообщения.
-
-newtype BSPM a r = BSPM { unBSPM :: Worker a -> IO r }
+newtype BSPM a s r = BSPM { unBSPM :: Worker a s -> IO r }
 
 data Message a = DataMessage a | EndReceive deriving ( Show, Eq )
 
-data Worker a = Worker
-  { _chan :: TChan (Message a)
-  , _currentStep :: Step
+data Worker a s = Worker
+  { _chan :: !(TChan (Message a))
+  , _currentStep :: !(Step s)
   }
 
-data Step = Step
-  { _workerCount :: IORef Int
-  , _finalizer :: IORef (IO ())
-  , _nextStep :: IORef (Maybe Step)
+data Step s = Step
+  { _workerCount :: !(IORef Int)
+  , _finalizer :: !(IORef (IO ()))
+  , _nextStep :: !(RunOnce (Step s))
+  , _sharedSate :: s
   }
 
-instance Functor (BSPM a) where
+instance Functor (BSPM a s) where
   fmap = liftM
 
-instance Applicative (BSPM a) where
+instance Applicative (BSPM a s) where
   pure = return
   (<*>) = ap
 
-instance Monad (BSPM a) where
+instance Monad (BSPM a s) where
   return = BSPM . const . return
   a >>= f = BSPM $ \w -> unBSPM a w >>= flip unBSPM w . f
 
-instance MonadIO (BSPM a) where
+instance MonadIO (BSPM a s) where
   liftIO = BSPM . const
 
-newStep :: IO Step
-newStep = do
+{-# INLINE newStep #-}
+newStep :: StateStream s -> IO (Step s)
+newStep (state :< ss) = do
   workerCount <- newIORef 1
   finalizer <- newIORef $ return ()
-  nextStep <- newIORef Nothing
+  stateStream <- ss
+  nextStep <- newRunOnce $ newStep stateStream
   return Step
     { _workerCount = workerCount
     , _finalizer = finalizer
     , _nextStep = nextStep
+    , _sharedSate = state
     }
 
-newWorker :: Step -> IO (Worker a)
+{-# INLINE newWorker #-}
+newWorker :: Step s -> IO (Worker a s)
 newWorker step = do
   chan <- newTChanIO
   return Worker
@@ -86,12 +86,12 @@ newWorker step = do
     , _currentStep = step
     }
 
-run :: BSPM Void r -> IO r
-run bspm = do
-  step <- newStep
+run :: BSPM Void s r -> StateStream s -> IO r
+run bspm ss = do
+  step <- newStep ss
   worker <- newWorker step
   result <- unBSPM bspm worker
-  readIORef (_finalizer step)
+  join $ readIORef (_finalizer step)
   return result
 
 endRecieve :: TChan (Message a) -> IO ()
@@ -100,21 +100,15 @@ endRecieve chan = skipToEnd
     skipToEnd = do
       msg <- atomically (readTChan chan)
       case msg of
-        EndReceive -> putStrLn "got EndRecieve message." >> return ()
+        EndReceive -> return () -- void $ putStrLn "got EndRecieve message."
         _ -> skipToEnd
 
-spawn :: BSPM b () -> BSPM a (Worker b)
+spawn :: BSPM a s () -> BSPM b s (Worker a s)
 spawn child = BSPM $ \this -> do
-  step' <- newStep
-  -- TODO: we need to create state only once, hence the result of this
-  -- function will be discarded most the times. Need to profile and optimize.
-  nextStep <- atomicModifyIORef' (_nextStep $ _currentStep this) $ \maybeStep ->
-    case maybeStep of
-      Just s -> (Just s, s)
-      Nothing -> (Just step', step')
+  nextStep <- getRunOnce (_nextStep $ _currentStep this)
   worker <- newWorker nextStep
   atomicModifyIORef' (_finalizer $ _currentStep this) $ \finalizer ->
-    (finalizer >> putStrLn "Sending EndReceive to child worker" >> atomically (writeTChan (_chan worker) EndReceive), ())
+    (finalizer >> {-- putStrLn "Sending EndReceive to child worker" >> --} atomically (writeTChan (_chan worker) EndReceive), ())
   forkIO $ do --TODO: protect with try-catch, mask async exceptions
     unBSPM child worker
     endRecieve $ _chan worker
@@ -124,15 +118,18 @@ spawn child = BSPM $ \this -> do
       return ()
   return worker
 
-{-
+send :: Worker a s -> a -> BSPM b s ()
+send worker =  BSPM . const . atomically . writeTChan (_chan worker) . DataMessage
 
-send :: Worker a -> a -> BSPM ()
-send Worker {..} = BSPM . const . atomically . writeTChan _chan . DataMessage
+receive :: BSPM a s (Maybe a)
+receive = BSPM $ \worker -> atomically $ do
+  msg <- readTChan $ _chan worker
+  case msg of
+    DataMessage a -> return $ Just a
+    EndReceive -> do
+      unGetTChan (_chan worker) msg
+      return Nothing
 
--- чтобы recieve работал, BSPM должен знать про свой канал.
-recieve :: Int
-recieve = undefined
-
--- halt :: BSPM () -- actually we do not want to halt explicitly
--- halt = undefined
--}
+{-# INLINE getSate #-}
+getSate :: BSPM b s s
+getSate = BSPM $ \worker -> return $ _sharedSate $ _currentStep worker
