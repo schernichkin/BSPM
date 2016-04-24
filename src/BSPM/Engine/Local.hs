@@ -86,8 +86,8 @@ newWorker step = do
     , _currentStep = step
     }
 
-run :: BSPM Void s r -> StateStream s -> IO r
-run bspm ss = do
+run :: StateStream s -> BSPM a s r -> IO r
+run ss bspm = do
   step <- newStep ss
   worker <- newWorker step
   result <- unBSPM bspm worker

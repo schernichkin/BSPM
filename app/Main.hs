@@ -28,5 +28,5 @@ bspmRoot = do
 main :: IO ()
 main = do
   putStrLn "press any key to exit.."
-  run bspmRoot SS.unit
+  run SS.unit bspmRoot
   void getLine

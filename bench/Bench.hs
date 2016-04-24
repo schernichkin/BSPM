@@ -3,6 +3,7 @@
 module Bench where
 
 import           BSPM.Engine.Local
+import           BSPM.Engine.Local.WorkerSet
 import qualified BSPM.StateStream as SS
 import           BSPM.Util.CountDown
 import           Control.Concurrent
@@ -25,17 +26,22 @@ forkAndWait c = do
 spawnAndWait :: Int -> IO ()
 spawnAndWait c = do
   cd <- newCountDown c
-  run (replicateM_ c $ spawn $ liftIO $ decCountDown cd) SS.unit
+  run SS.unit $ replicateM_ c $ spawn $ liftIO $ decCountDown cd
   waitCountDown cd
 
 spawnSendRecieveWait  :: Int -> IO ()
 spawnSendRecieveWait c = do
   cd <- newCountDown c
-  run
-    ( replicateM_ c $ do
-        worker <- spawn (receive >> liftIO (decCountDown cd))
-        send worker () )
-    SS.unit
+  run SS.unit $ replicateM_ c $ do
+    worker <- spawn (receive >> liftIO (decCountDown cd))
+    send worker ()
+  waitCountDown cd
+
+sendToRecieveWait :: Int -> IO ()
+sendToRecieveWait c = do
+  cd <- newCountDown c
+  runW SS.unit (const $ receive >> liftIO (decCountDown cd)) $
+    forM_  [1..c] $ flip sendTo ()
   waitCountDown cd
 
 populateHashtable :: forall h . HashTable h => Proxy h -> Int -> IO ()
@@ -59,8 +65,9 @@ main = defaultMain
     [ bgroup "spawn"
       [ bench "spawn and wait 10 000" $ nfIO $ spawnAndWait 10000
       ]
-    , bgroup "spawn and send"
+    , bgroup "send"
       [ bench "spawn and send 10 000" $ nfIO $ spawnSendRecieveWait 10000
+      , bench "send to 10 000" $ nfIO $ sendToRecieveWait 10000
       ]
     ]
   ]
