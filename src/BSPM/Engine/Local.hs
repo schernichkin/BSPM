@@ -66,7 +66,7 @@ instance MonadIO (BSPM a s) where
 {-# INLINE newStep #-}
 newStep :: StateStream s -> IO (Step s)
 newStep (state :< ss) = do
-  workerCount <- newIORef 1
+  workerCount <- newIORef 0 -- will be zero for root worker, I'm ok with it for now
   finalizer <- newIORef $ return ()
   stateStream <- ss
   nextStep <- newRunOnce $ newStep stateStream
@@ -108,13 +108,17 @@ spawn child = BSPM $ \this -> do
   nextStep <- getRunOnce (_nextStep $ _currentStep this)
   worker <- newWorker nextStep
   atomicModifyIORef' (_finalizer $ _currentStep this) $ \finalizer ->
-    (finalizer >> {-- putStrLn "Sending EndReceive to child worker" >> --} atomically (writeTChan (_chan worker) EndReceive), ())
+    (finalizer >> {- putStrLn "Sending EndReceive to child worker" >>  -} atomically (writeTChan (_chan worker) EndReceive), ())
+  -- TODO: implement correct worker count protocol (e.g. take here, put in forked thread)
+  vc <- atomicModifyIORef' (_workerCount nextStep) $ \vc -> (vc + 1, vc + 1)
+  -- putStrLn $ "next step worker count " ++ (show vc)
   forkIO $ do --TODO: protect with try-catch, mask async exceptions
     unBSPM child worker
     endRecieve $ _chan worker
     workerCount <- atomicModifyIORef' (_workerCount nextStep) $ \vc -> (vc - 1, vc - 1)
+    -- liftIO $ putStrLn $  "worker count == " ++ (show workerCount)
     when (workerCount == 0) $ do
-      readIORef $ _finalizer nextStep
+      join $ readIORef $ _finalizer nextStep
       return ()
   return worker
 

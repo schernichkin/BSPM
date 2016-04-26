@@ -7,26 +7,21 @@ import System.IO
 import Data.Void
 import Control.Monad
 import qualified BSPM.StateStream as SS
+import Data.Map.Strict as Map
+import  BSPM.SSSP as SSSP
 
-data Message = Message String
-
-worker :: BSPM Message () ()
-worker = do
-  liftIO $ putStrLn "bspm worker spawned"
-  return ()
-
-bspmRoot :: BSPM Void () ()
-bspmRoot = do
-  liftIO $ putStrLn "bspmRoot!"
-  w1 <- spawn worker
-  w2 <- spawn worker
-  --send w1 $ Message "test1"
-  --send w1 $ Message "test2"
-  --send w2 $ Message "test3"
-  return ()
+graph = Map.fromList
+  [ (1, [(2, 7), (3, 9), (6, 14)])
+  , (2, [(1, 7), (3, 10), (4, 15)])
+  , (3, [(1, 9), (2, 10), (4, 11), (6, 2)])
+  , (4, [(2, 15), (3, 11), (5, 6)])
+  , (5, [(4, 6), (6, 9)])
+  , (6, [(1, 14), (3, 2), (5, 9)])
+  ]
 
 main :: IO ()
 main = do
   putStrLn "press any key to exit.."
-  run SS.unit bspmRoot
+  SSSP.runOnGraph graph 1000 1 5
+  --run SS.unit bspmRoot
   void getLine
