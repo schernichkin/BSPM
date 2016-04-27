@@ -8,19 +8,24 @@ import Data.Void
 import Control.Monad
 import qualified BSPM.StateStream as SS
 import Data.Map.Strict as Map
-import  BSPM.SSSP as SSSP
+import BSPM.SSSP as SSSP
+import Data.Graph.Unboxed
+import Data.Graph.Unboxed.Builder
+import Data.Graph.Unboxed.Internal
+import qualified Data.HashTable.IO as H
 
-graph = Map.fromList
-  [ (1, [(2, 7), (3, 9), (6, 14)])
-  , (2, [(1, 7), (3, 10), (4, 15)])
-  , (3, [(1, 9), (2, 10), (4, 11), (6, 2)])
-  , (4, [(2, 15), (3, 11), (5, 6)])
-  , (5, [(4, 6), (6, 9)])
-  , (6, [(1, 14), (3, 2), (5, 9)])
-  ]
+newGraph :: IO (UGraph Int (Int, Double))
+newGraph = build $ do
+  addEdges 1 [(2, 7), (3, 9), (6, 14)]
+  addEdges 2 [(1, 7), (3, 10), (4, 15)]
+  addEdges 3 [(1, 9), (2, 10), (4, 11), (6, 2)]
+  addEdges 4 [(2, 15), (3, 11), (5, 6)]
+  addEdges 5 [(4, 6), (6, 9)]
+  addEdges 6 [(1, 14), (3, 2), (5, 9)]
 
 main :: IO ()
 main = do
+  graph <- newGraph
   putStrLn "press any key to exit.."
   SSSP.runOnGraph graph 1000 1 5
   --run SS.unit bspmRoot

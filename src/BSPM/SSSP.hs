@@ -1,3 +1,6 @@
+{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE FlexibleContexts #-}
+
 module BSPM.SSSP where
 
 import qualified Data.HashTable.IO as H
@@ -11,11 +14,9 @@ import Control.Monad.IO.Class
 import Control.Monad.STM
 import Data.Maybe
 import Control.Monad
-import Data.Map.Strict as Map
 import qualified BSPM.StateStream as SS
-
-type Edge = (Int, Double)
-type Graph = Map Int [Edge]
+import Data.Graph.Class
+import Data.MonoTraversable
 
 data Estimate = Infinity | From !Int !Double deriving ( Show, Eq )
 
@@ -36,7 +37,13 @@ foldMessages est = do
     Just (PathToYou v w) -> foldMessages $ est `mappend` (From v w)
     Nothing -> return est
 
-newVertextWorker :: Graph -> Double -> Int -> IO (Int -> BSPMW Message Int s ())
+newVertextWorker :: ( Graph g
+                    , Vertex g ~ Int
+                    , Edge g ~ (Int, Double)
+                    , MonoFoldable (Edges g (Edge g))
+                    , Element (Edges g (Edge g)) ~ (Edge g)
+                    )
+                 => g -> Double -> Int -> IO (Int -> BSPMW Message Int s ())
 newVertextWorker graph maxWeight target = do
   distances <- H.new >>= newTMVarIO :: IO (TMVar (BasicHashTable Int Estimate))
   shortestPathWeight <- newIORef maxWeight
@@ -67,11 +74,20 @@ newVertextWorker graph maxWeight target = do
                         ++ " to " ++ (show target) ++ " "
                         ++ (show newEst)
               else do
-                let edges = graph Map.! k
-                liftIO $ putStrLn $ "Vertext " ++ (show k) ++  " will broadcast new estimate to " ++ (show edges)
-                mapM_ (\(v, w) -> sendTo v $ PathToYou k $ w + weight) edges
+                let es = edges graph k
+                ofor_ es $ \(v, w) -> do
+                  let ew = w + weight
+                  when (ew < spw) $ do
+                    liftIO $ putStrLn $ "Vertext " ++ (show k) ++  " will send new estimate to " ++ (show v)
+                    sendTo v $ PathToYou k ew
 
-runOnGraph :: Graph -> Double -> Int -> Int -> IO ()
+runOnGraph :: ( Graph g
+              , Vertex g ~ Int
+              , Edge g ~ (Int, Double)
+              , MonoFoldable (Edges g (Edge g))
+              , Element (Edges g (Edge g)) ~ (Edge g)
+              )
+           => g -> Double -> Int -> Int -> IO ()
 runOnGraph graph maxWeight from to = do
   liftIO $ putStrLn $ "runOnGraph: maxWeight = " ++ (show maxWeight)
                    ++ " from = " ++ (show from)
