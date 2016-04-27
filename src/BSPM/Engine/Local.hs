@@ -1,11 +1,11 @@
 module BSPM.Engine.Local
     ( BSPM ()
     , Worker ()
-    , getSate
     , receive
     , run
     , send
     , spawn
+    , sendTo
     ) where
 
 import BSPM.StateStream ( StateStream(..) )
@@ -16,79 +16,74 @@ import Control.Concurrent.STM.TChan
 import Control.Monad
 import Control.Monad.STM
 import Control.Monad.IO.Class
+import Data.Hashable
 import Data.IORef
 import Data.Void
 
-      -- Воркер привязан к супершагу, новый супершаг = новый воркек
-      -- Операции воркера.
-      -- 1. В любой момент можно создавать новые воркеры и посылать им сообщения
-      --    (сообщение будут доступны в следующем супер-шаге).
-      -- 1.1 Дополнтительно всем воркерам доступен глобальный реестр созданных на
-      --     данном супершаге воркеров.
-      -- 2. Воркер может прочитать все свои сообщения. Операция чтения блокирует воркер,
-      --    если очередь сообщений пустая, так же после того, как все воркеры предыдущего
-      --    супершага окончили отправку сообщений, в очередь помещается сообщение
-      --    end-recieve означающее, что больше сообщений не будет.
-      -- 3. Воркер может послать сообщение vote-halt и завершить работу. После того,
-      --    как все воркеры послали vote-halt, текущий шаг считается завершенным и в
-      --    очередь всем воркерам следующего шага кладётся сообщение end-recieve
+import BSPM.Util.RunOnceSet (RunOnceSet)
+import qualified BSPM.Util.RunOnceSet as RS
 
-newtype BSPM a s r = BSPM { unBSPM :: Worker a s -> IO r }
+newtype BSPM a k r = BSPM { unBSPM :: Worker a k -> IO r }
 
-data Message a = DataMessage a | EndReceive deriving ( Show, Eq )
-
-data Worker a s = Worker
-  { _chan :: !(TChan (Message a))
-  , _currentStep :: !(Step s)
-  }
-
-data Step s = Step
-  { _workerCount :: !(IORef Int)
-  , _finalizer :: !(IORef (IO ()))
-  , _nextStep :: !(RunOnce (Step s))
-  , _sharedSate :: s
-  }
-
-instance Functor (BSPM a s) where
+instance Functor (BSPM a k) where
   fmap = liftM
 
-instance Applicative (BSPM a s) where
+instance Applicative (BSPM a k) where
   pure = return
   (<*>) = ap
 
-instance Monad (BSPM a s) where
+instance Monad (BSPM a k) where
   return = BSPM . const . return
   a >>= f = BSPM $ \w -> unBSPM a w >>= flip unBSPM w . f
 
-instance MonadIO (BSPM a s) where
+instance MonadIO (BSPM a k) where
   liftIO = BSPM . const
 
+data Message a = DataMessage a | EndReceive deriving ( Show, Eq )
+
+data Worker a k = Worker
+  { _chan :: !(TChan (Message a))
+  , _currentStep :: !(Step a k)
+  }
+
+-- TODO: нужно отслеживать окончание работы.
+-- Окончание работы может быть обнаружено в процессе вызова финалайзера.
+-- Один из вариантов - проверить наличие инициализированного _nextStep.
+data Step a k = Step
+  { _workerCount :: !(IORef Int)
+  -- После объединения базовой функциональности с WorkerSet нам больше не
+  -- понадобится цепочка финалайзеров.
+  , _finalizer :: !(IORef (IO ()))
+  , _nextStep :: !(RunOnce (Step a k))
+  , _workerSet :: (RunOnceSet (BSPM a k) k (Worker a k))
+  }
+
 {-# INLINE newStep #-}
-newStep :: StateStream s -> IO (Step s)
-newStep (state :< ss) = do
+newStep :: (k -> BSPM a k ()) -> IO (Step a k)
+newStep workers = do
   workerCount <- newIORef 0 -- will be zero for root worker, I'm ok with it for now
   finalizer <- newIORef $ return ()
-  stateStream <- ss
-  nextStep <- newRunOnce $ newStep stateStream
+  nextStep <- newRunOnce (newStep workers)
+  workerSet <- RS.newRunOnce (spawn . workers)
   return Step
     { _workerCount = workerCount
     , _finalizer = finalizer
     , _nextStep = nextStep
-    , _sharedSate = state
+    , _workerSet = workerSet
     }
 
 {-# INLINE newWorker #-}
-newWorker :: Step s -> IO (Worker a s)
+newWorker :: Step a k -> IO (Worker a k)
 newWorker step = do
   chan <- newTChanIO
   return Worker
     { _chan = chan
-    , _currentStep = step
+    , _currentStep = step --TODO: зарегистрировать воркер
     }
 
-run :: StateStream s -> BSPM a s r -> IO r
-run ss bspm = do
-  step <- newStep ss
+run :: (k -> BSPM a k ()) -> BSPM a k r -> IO r
+run workers bspm = do
+  step <- newStep workers
   worker <- newWorker step
   result <- unBSPM bspm worker
   join $ readIORef (_finalizer step)
@@ -103,7 +98,8 @@ endRecieve chan = skipToEnd
         EndReceive -> return () -- void $ putStrLn "got EndRecieve message."
         _ -> skipToEnd
 
-spawn :: BSPM a s () -> BSPM b s (Worker a s)
+--TODO: сделать приватной.
+spawn :: BSPM a k () -> BSPM a k (Worker a k)
 spawn child = BSPM $ \this -> do
   nextStep <- getRunOnce (_nextStep $ _currentStep this)
   worker <- newWorker nextStep
@@ -125,6 +121,12 @@ spawn child = BSPM $ \this -> do
 send :: Worker a s -> a -> BSPM b s ()
 send worker =  BSPM . const . atomically . writeTChan (_chan worker) . DataMessage
 
+sendTo :: ( Eq k, Hashable k ) => k -> a -> BSPM a k ()
+sendTo key message = do
+  this <- BSPM return
+  worker <- RS.getRunOnce (_workerSet $ _currentStep this) key
+  send worker message
+
 receive :: BSPM a s (Maybe a)
 receive = BSPM $ \worker -> atomically $ do
   msg <- readTChan $ _chan worker
@@ -133,7 +135,3 @@ receive = BSPM $ \worker -> atomically $ do
     EndReceive -> do
       unGetTChan (_chan worker) msg
       return Nothing
-
-{-# INLINE getSate #-}
-getSate :: BSPM b s s
-getSate = BSPM $ \worker -> return $ _sharedSate $ _currentStep worker

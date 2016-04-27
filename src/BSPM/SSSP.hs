@@ -8,13 +8,11 @@ import Data.HashTable.IO ( BasicHashTable )
 import Control.Concurrent.STM.TMVar
 import BSPM.StateStream as SS
 import BSPM.Engine.Local
-import BSPM.Engine.Local.WorkerSet
 import Data.IORef
 import Control.Monad.IO.Class
 import Control.Monad.STM
 import Data.Maybe
 import Control.Monad
-import qualified BSPM.StateStream as SS
 import Data.Graph.Class
 import Data.MonoTraversable
 
@@ -29,7 +27,7 @@ instance Monoid Estimate where
 
 data Message = PathToYou Int Double deriving ( Show, Eq )
 
-foldMessages :: Estimate -> BSPMW Message Int s Estimate
+foldMessages :: Estimate -> BSPM Message Int Estimate
 foldMessages est = do
   msg <- receive
   -- liftIO $ putStrLn $ "foldMessages: got message " ++ (show msg)
@@ -43,7 +41,7 @@ newVertextWorker :: ( Graph g
                     , MonoFoldable (Edges g (Edge g))
                     , Element (Edges g (Edge g)) ~ (Edge g)
                     )
-                 => g -> Double -> Int -> IO (Int -> BSPMW Message Int s ())
+                 => g -> Double -> Int -> IO (Int -> BSPM Message Int ())
 newVertextWorker graph maxWeight target = do
   distances <- H.new >>= newTMVarIO :: IO (TMVar (BasicHashTable Int Estimate))
   shortestPathWeight <- newIORef maxWeight
@@ -93,5 +91,5 @@ runOnGraph graph maxWeight from to = do
                    ++ " from = " ++ (show from)
                    ++ " to = " ++ (show to)
   worker <- newVertextWorker graph maxWeight to
-  runW SS.unit worker $ do
+  run worker $ do
     sendTo from $ PathToYou 1 0
