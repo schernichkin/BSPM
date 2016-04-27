@@ -8,6 +8,7 @@ module Data.Graph.Unboxed.Builder
   ) where
 
 import           Control.Monad
+import           Control.Monad.IO.Class
 import           Control.Monad.Primitive
 import           Data.Graph.Unboxed.Internal
 import           Data.IORef
@@ -52,6 +53,9 @@ instance Functor (UGraphBuilder v e) where
 instance Applicative (UGraphBuilder v e) where
   pure = return
   (<*>) = ap
+
+instance MonadIO (UGraphBuilder a s) where
+  liftIO = UGraphBuilder . const
 
 instance Monad (UGraphBuilder v e) where
   return = UGraphBuilder . const . return

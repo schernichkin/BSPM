@@ -16,9 +16,9 @@ type HashTable k v = H.BasicHashTable k v
 
 newtype UGraph v e = UGraph { unUGraph :: HashTable v (Vector e) } deriving ( Show )
 
-instance ( Eq v, Hashable v ) => Graph (UGraph v e) where
+instance ( Eq v, Hashable v, Unbox e ) => Graph (UGraph v e) where
   type Vertex (UGraph v e) = v
   type Edges (UGraph v e) = Vector
   type Edge (UGraph v e) = e
 
-  edges g = fromJust . unsafePerformIO . H.lookup (unUGraph g)
+  edges g = fromMaybe (V.empty) . unsafePerformIO . H.lookup (unUGraph g)

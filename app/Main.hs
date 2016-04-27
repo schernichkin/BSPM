@@ -13,6 +13,9 @@ import Data.Graph.Unboxed
 import Data.Graph.Unboxed.Builder
 import Data.Graph.Unboxed.Internal
 import qualified Data.HashTable.IO as H
+import Paths_BSPM
+import Data.Graph.Unboxed.Reader.WikiVote
+import System.IO
 
 newGraph :: IO (UGraph Int (Int, Double))
 newGraph = build $ do
@@ -25,8 +28,10 @@ newGraph = build $ do
 
 main :: IO ()
 main = do
-  graph <- newGraph
+  putStrLn "Loading graph.."
+  graphPath <- getDataFileName "wiki-Vote.txt"
+  graph <- withFile graphPath ReadMode readGraph
   putStrLn "press any key to exit.."
-  SSSP.runOnGraph graph 1000 1 5
+  SSSP.runOnGraph graph 1000 8232 4332
   --run SS.unit bspmRoot
   void getLine

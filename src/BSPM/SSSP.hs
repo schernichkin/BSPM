@@ -57,7 +57,7 @@ newVertextWorker graph maxWeight target = do
     -- liftIO $ putStrLn $ "current estimate for " ++ (show k) ++ " " ++ (show est)
     newEst <- foldMessages est
     when (est /= newEst) $ do
-      liftIO $ putStrLn $ "new estimate for " ++ (show k) ++ " " ++ (show newEst)
+      -- liftIO $ putStrLn $ "new estimate for " ++ (show k) ++ " " ++ (show newEst)
       liftIO $ do
         table <- atomically (takeTMVar distances)
         H.insert table k newEst
@@ -78,7 +78,7 @@ newVertextWorker graph maxWeight target = do
                 ofor_ es $ \(v, w) -> do
                   let ew = w + weight
                   when (ew < spw) $ do
-                    liftIO $ putStrLn $ "Vertext " ++ (show k) ++  " will send new estimate to " ++ (show v)
+                    -- liftIO $ putStrLn $ "Vertext " ++ (show k) ++  " will send new estimate to " ++ (show v)
                     sendTo v $ PathToYou k ew
 
 runOnGraph :: ( Graph g

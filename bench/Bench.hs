@@ -10,12 +10,15 @@ import           Control.Concurrent
 import           Control.Monad
 import           Control.Monad.IO.Class
 import           Criterion.Main
+import           Data.Graph.Unboxed.Reader.WikiVote
 import           Data.HashTable.Class ( HashTable )
 import           Data.HashTable.IO ( IOHashTable )
 import qualified Data.HashTable.IO as H
 import qualified Data.HashTable.ST.Cuckoo as Cuckoo
 import qualified Data.HashTable.ST.Basic as Basic
 import           Data.Proxy
+import           Paths_BSPM
+import           System.IO
 
 forkAndWait :: Int -> IO ()
 forkAndWait c = do
@@ -49,6 +52,12 @@ populateHashtable _ c = do
   table <- H.new :: IO (IOHashTable h Int Int)
   forM_  [1..c] $ \i -> H.insert table i i
 
+readWikiVote :: IO ()
+readWikiVote = do
+  graphPath <- getDataFileName "wiki-Vote.txt"
+  void $ withFile graphPath ReadMode readGraph
+  return ()
+
 main :: IO ()
 main = defaultMain
   [ bgroup "Baseline"
@@ -69,5 +78,8 @@ main = defaultMain
       [ bench "spawn and send 10 000" $ nfIO $ spawnSendRecieveWait 10000
       , bench "send to 10 000" $ nfIO $ sendToRecieveWait 10000
       ]
+    ]
+  , bgroup "Data.Graph.Unboxed.Reader.WikiVote"
+    [ bench "readGraph" $ nfIO $ readWikiVote
     ]
   ]

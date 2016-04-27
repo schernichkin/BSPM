@@ -1,3 +1,1 @@
-{-# LANGUAGE RankNTypes #-}
-
-module BSPM where
+ module BSPM where
