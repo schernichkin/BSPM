@@ -3,8 +3,6 @@
 module Bench where
 
 import           BSPM.Engine.Local
-import           BSPM.Engine.Local.WorkerSet
-import qualified BSPM.StateStream as SS
 import           BSPM.Util.CountDown
 import           Control.Concurrent
 import           Control.Monad
@@ -26,24 +24,10 @@ forkAndWait c = do
   replicateM_ c $ forkIO $ decCountDown cd
   waitCountDown cd
 
-spawnAndWait :: Int -> IO ()
-spawnAndWait c = do
-  cd <- newCountDown c
-  run SS.unit $ replicateM_ c $ spawn $ liftIO $ decCountDown cd
-  waitCountDown cd
-
-spawnSendRecieveWait  :: Int -> IO ()
-spawnSendRecieveWait c = do
-  cd <- newCountDown c
-  run SS.unit $ replicateM_ c $ do
-    worker <- spawn (receive >> liftIO (decCountDown cd))
-    send worker ()
-  waitCountDown cd
-
 sendToRecieveWait :: Int -> IO ()
 sendToRecieveWait c = do
   cd <- newCountDown c
-  runW SS.unit (const $ receive >> liftIO (decCountDown cd)) $
+  run (const $ receive >> liftIO (decCountDown cd)) $
     forM_  [1..c] $ flip sendTo ()
   waitCountDown cd
 
@@ -65,21 +49,15 @@ main = defaultMain
       [ bench "fork and wait 10 000" $ nfIO $ forkAndWait 10000
       -- , bench "fork and wait 1 000 000" $ nfIO $ forkAndWait 1000000
       ]
-    , bgroup "hashtable"
+    , bgroup "hashtables"
       [ bench "Basic 10 000 inserts" $ nfIO $ populateHashtable (Proxy :: Proxy Basic.HashTable) 10000
       , bench "Cuckoo 10 000 inserts" $ nfIO $ populateHashtable (Proxy :: Proxy Cuckoo.HashTable) 10000
       ]
     ]
   , bgroup "BSPM.Engine.Local"
-    [ bgroup "spawn"
-      [ bench "spawn and wait 10 000" $ nfIO $ spawnAndWait 10000
-      ]
-    , bgroup "send"
-      [ bench "spawn and send 10 000" $ nfIO $ spawnSendRecieveWait 10000
-      , bench "send to 10 000" $ nfIO $ sendToRecieveWait 10000
-      ]
+    [  bench "sendTo 10 000" $ nfIO $ sendToRecieveWait 10000
     ]
   , bgroup "Data.Graph.Unboxed.Reader.WikiVote"
-    [ bench "readGraph" $ nfIO $ readWikiVote
+    [ bench "readGraph" $ nfIO readWikiVote
     ]
   ]

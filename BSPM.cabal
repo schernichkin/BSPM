@@ -1,13 +1,13 @@
 name:                BSPM
 version:             0.1.0.0
-synopsis:            Bulk synchronous parallel messaging library
+synopsis:            Bulk synchronous messaging
 description:         Please see README.md
 homepage:            https://github.com/schernichkin/BSPM#readme
 license:             BSD3
 license-file:        LICENSE
 author:              Stanislav Chernichkin
 maintainer:          schernichkin@gmail.com
-copyright:           Copyright (C) 2015 Stanislav Chernichkin
+copyright:           Copyright (C) 2016 Stanislav Chernichkin
 category:            Concurrency
 build-type:          Simple
 -- extra-source-files:
@@ -20,9 +20,7 @@ library
   hs-source-dirs:      src
   exposed-modules:     BSPM
                      , BSPM.Engine.Local
-                     , BSPM.Engine.Local.WorkerSet
                      , BSPM.SSSP
-                     , BSPM.StateStream
                      , BSPM.Util
                      , BSPM.Util.CountDown
                      , BSPM.Util.RunOnce
@@ -35,12 +33,14 @@ library
                      , Data.Graph.Unboxed.Reader.WikiVote
   build-depends:       base >= 4.7 && < 5
                      , bytestring
-                     , free
                      , hashable
                      , hashtables
+                     , lifted-base
+                     , monad-control
                      , mono-traversable
                      , primitive
                      , transformers
+                     , transformers-base
                      , semigroupoids
                      , stm
                      , vector

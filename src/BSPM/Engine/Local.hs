@@ -1,3 +1,6 @@
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE TypeFamilies #-}
+
 module BSPM.Engine.Local
     ( BSPM ()
     , Worker ()
@@ -8,14 +11,14 @@ module BSPM.Engine.Local
     , sendTo
     ) where
 
-import BSPM.StateStream ( StateStream(..) )
 import BSPM.Util
-import Control.Comonad.Cofree
 import Control.Concurrent
 import Control.Concurrent.STM.TChan
 import Control.Monad
-import Control.Monad.STM
+import Control.Monad.Base
 import Control.Monad.IO.Class
+import Control.Monad.STM
+import Control.Monad.Trans.Control
 import Data.Hashable
 import Data.IORef
 import Data.Void
@@ -39,6 +42,14 @@ instance Monad (BSPM a k) where
 instance MonadIO (BSPM a k) where
   liftIO = BSPM . const
 
+instance MonadBase IO (BSPM a k) where
+  liftBase = liftIO
+{-
+instance MonadBaseControl IO (BSPM a k) where
+  type StM (BSPM a k) a   = a
+  liftBaseWith f = f id
+  restoreM       = return
+-}
 data Message a = DataMessage a | EndReceive deriving ( Show, Eq )
 
 data Worker a k = Worker

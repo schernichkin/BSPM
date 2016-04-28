@@ -6,7 +6,6 @@ module BSPM.SSSP where
 import qualified Data.HashTable.IO as H
 import Data.HashTable.IO ( BasicHashTable )
 import Control.Concurrent.STM.TMVar
-import BSPM.StateStream as SS
 import BSPM.Engine.Local
 import Data.IORef
 import Control.Monad.IO.Class

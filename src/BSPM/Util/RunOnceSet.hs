@@ -1,3 +1,5 @@
+{-# LANGUAGE FlexibleContexts #-}
+
 module BSPM.Util.RunOnceSet
   ( RunOnceSet ()
   , newRunOnce
@@ -5,9 +7,12 @@ module BSPM.Util.RunOnceSet
   ) where
 
 import Control.Concurrent.STM.TMVar
+import Control.Exception.Lifted
 import Control.Monad
+import Control.Monad.Base
 import Control.Monad.IO.Class
 import Control.Monad.STM
+import Control.Monad.Trans.Control
 import Data.Hashable
 import Data.HashTable.IO as H
 
@@ -24,16 +29,16 @@ newRunOnce initializer = do
     , _initializer = initializer
     }
 
-{-# INLINE getRunOnce #-}
-getRunOnce :: ( MonadIO m, Eq k, Hashable k ) => RunOnceSet m k v -> k -> m v
-getRunOnce once key = do --TODO: mask async exceptions, protect with try-finally
-  table <- liftIO $ atomically $ takeTMVar (_table once)
-  maybeValue <- liftIO $ H.lookup table key
-  value <- case maybeValue of
-    Just v -> return v
-    Nothing -> do
-      v <- _initializer once key
-      liftIO $ insert table key v
-      return v
-  liftIO $ atomically $ putTMVar (_table once) table
-  return value
+getRunOnce :: ( MonadBase IO m, Eq k, Hashable k ) => RunOnceSet m k v -> k -> m v
+getRunOnce once key = bracket acquire release initialize
+  where
+    acquire = liftBase $ atomically $ takeTMVar (_table once)
+    release = liftBase . atomically . putTMVar (_table once)
+    initialize table = do
+      maybeValue <- liftBase $ H.lookup table key
+      case maybeValue of
+        Just v -> return v
+        Nothing -> do
+          v <- _initializer once key
+          liftBase $ insert table key v
+          return v

@@ -1,12 +1,9 @@
 module Main where
 
 import BSPM.Engine.Local
-import BSPM.Engine.Local.WorkerSet
 import Control.Monad.IO.Class
-import System.IO
 import Data.Void
 import Control.Monad
-import qualified BSPM.StateStream as SS
 import Data.Map.Strict as Map
 import BSPM.SSSP as SSSP
 import Data.Graph.Unboxed
