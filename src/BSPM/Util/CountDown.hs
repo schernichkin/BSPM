@@ -1,3 +1,4 @@
+-- TODO: удалить, движок должен сам поддерживать блокировку 
 module BSPM.Util.CountDown
   ( CountDown ()
   , newCountDown

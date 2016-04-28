@@ -23,8 +23,8 @@ library
                      , BSPM.SSSP
                      , BSPM.Util
                      , BSPM.Util.CountDown
+                     , BSPM.Util.CriticalSection
                      , BSPM.Util.RunOnce
-                     , BSPM.Util.RunOnceSet
 
                      , Data.Graph.Class
                      , Data.Graph.Unboxed
@@ -35,13 +35,9 @@ library
                      , bytestring
                      , hashable
                      , hashtables
-                     , lifted-base
-                     , monad-control
                      , mono-traversable
                      , primitive
                      , transformers
-                     , transformers-base
-                     , semigroupoids
                      , stm
                      , vector
   default-language:    Haskell2010

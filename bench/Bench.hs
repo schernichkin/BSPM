@@ -18,18 +18,15 @@ import           Data.Proxy
 import           Paths_BSPM
 import           System.IO
 
-forkAndWait :: Int -> IO ()
-forkAndWait c = do
+forkBench :: Int -> IO ()
+forkBench c = do
   cd <- newCountDown c
   replicateM_ c $ forkIO $ decCountDown cd
   waitCountDown cd
 
-sendToRecieveWait :: Int -> IO ()
-sendToRecieveWait c = do
-  cd <- newCountDown c
-  run (const $ receive >> liftIO (decCountDown cd)) $
-    forM_  [1..c] $ flip sendTo ()
-  waitCountDown cd
+sendBench :: Int -> IO ()
+sendBench c = do
+  run ( const $ return () ) $ forM_  [1..c] $ flip send ()
 
 populateHashtable :: forall h . HashTable h => Proxy h -> Int -> IO ()
 populateHashtable _ c = do
@@ -46,7 +43,7 @@ main :: IO ()
 main = defaultMain
   [ bgroup "Baseline"
     [ bgroup "forkIO"
-      [ bench "fork and wait 10 000" $ nfIO $ forkAndWait 10000
+      [ bench "fork and wait 10 000" $ nfIO $ forkBench 10000
       -- , bench "fork and wait 1 000 000" $ nfIO $ forkAndWait 1000000
       ]
     , bgroup "hashtables"
@@ -55,7 +52,7 @@ main = defaultMain
       ]
     ]
   , bgroup "BSPM.Engine.Local"
-    [  bench "sendTo 10 000" $ nfIO $ sendToRecieveWait 10000
+    [  bench "send 10 000" $ nfIO $ sendBench 10000
     ]
   , bgroup "Data.Graph.Unboxed.Reader.WikiVote"
     [ bench "readGraph" $ nfIO readWikiVote

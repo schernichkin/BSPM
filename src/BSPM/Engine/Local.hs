@@ -3,30 +3,27 @@
 
 module BSPM.Engine.Local
     ( BSPM ()
-    , Worker ()
+    , WorkerState ()
     , receive
     , run
     , send
-    , spawn
-    , sendTo
     ) where
 
-import BSPM.Util
-import Control.Concurrent
-import Control.Concurrent.STM.TChan
-import Control.Monad
-import Control.Monad.Base
-import Control.Monad.IO.Class
-import Control.Monad.STM
-import Control.Monad.Trans.Control
-import Data.Hashable
-import Data.IORef
-import Data.Void
+import           BSPM.Util.CriticalSection
+import           BSPM.Util.RunOnce
+import           Control.Concurrent
+import           Control.Concurrent.STM.TChan
+import           Control.Exception
+import           Control.Monad
+import           Control.Monad.IO.Class
+import           Control.Monad.STM
+import           Data.Hashable
+import qualified Data.HashTable.IO as H
+import           Data.IORef
 
-import BSPM.Util.RunOnceSet (RunOnceSet)
-import qualified BSPM.Util.RunOnceSet as RS
+type HashTable k v = H.BasicHashTable k v
 
-newtype BSPM a k r = BSPM { unBSPM :: Worker a k -> IO r }
+newtype BSPM a k r = BSPM { unBSPM :: WorkerState a k -> IO r }
 
 instance Functor (BSPM a k) where
   fmap = liftM
@@ -42,101 +39,100 @@ instance Monad (BSPM a k) where
 instance MonadIO (BSPM a k) where
   liftIO = BSPM . const
 
-instance MonadBase IO (BSPM a k) where
-  liftBase = liftIO
-{-
-instance MonadBaseControl IO (BSPM a k) where
-  type StM (BSPM a k) a   = a
-  liftBaseWith f = f id
-  restoreM       = return
--}
-data Message a = DataMessage a | EndReceive deriving ( Show, Eq )
+data MessageWrapper a = DataMessage a
+                      | EndReceive
+                      | Halt
+                      deriving ( Show, Eq )
 
-data Worker a k = Worker
-  { _chan :: !(TChan (Message a))
-  , _currentStep :: !(Step a k)
+data WorkerState a k = WorkerState
+  { _chan :: !(TChan (MessageWrapper a))
+  , _currentStep :: !(StepState a k)
   }
 
--- TODO: нужно отслеживать окончание работы.
--- Окончание работы может быть обнаружено в процессе вызова финалайзера.
--- Один из вариантов - проверить наличие инициализированного _nextStep.
-data Step a k = Step
-  { _workerCount :: !(IORef Int)
-  -- После объединения базовой функциональности с WorkerSet нам больше не
-  -- понадобится цепочка финалайзеров.
-  , _finalizer :: !(IORef (IO ()))
-  , _nextStep :: !(RunOnce (Step a k))
-  , _workerSet :: (RunOnceSet (BSPM a k) k (Worker a k))
+data StepState a k = StepState
+  { _activeWorkers :: !(IORef Int)
+  , _nextChans     :: !(CriticalSection (HashTable k (TChan (MessageWrapper a))))
+  , _nextStep      :: !(RunOnce (StepState a k))
+  , _workerFactory :: !(k -> BSPM a k ())
+  , _rootChan      :: !(TChan (MessageWrapper a))
   }
 
-{-# INLINE newStep #-}
-newStep :: (k -> BSPM a k ()) -> IO (Step a k)
-newStep workers = do
-  workerCount <- newIORef 0 -- will be zero for root worker, I'm ok with it for now
-  finalizer <- newIORef $ return ()
-  nextStep <- newRunOnce (newStep workers)
-  workerSet <- RS.newRunOnce (spawn . workers)
-  return Step
-    { _workerCount = workerCount
-    , _finalizer = finalizer
-    , _nextStep = nextStep
-    , _workerSet = workerSet
+{-# INLINE newStepState #-}
+newStepState :: (k -> BSPM a k ()) -> TChan (MessageWrapper a) -> IO (StepState a k)
+newStepState workerFactory rootChan = do
+  activeWorkers <- newIORef 0 -- will be zero for root worker, I'm ok with it for now
+  nextChans <- H.new >>= newCriticalSection
+  nextStep <- newRunOnce $ newStepState workerFactory rootChan
+  return StepState
+    { _activeWorkers = activeWorkers
+    , _nextChans     = nextChans
+    , _nextStep      = nextStep
+    , _workerFactory = workerFactory
+    , _rootChan      = rootChan
     }
 
-{-# INLINE newWorker #-}
-newWorker :: Step a k -> IO (Worker a k)
-newWorker step = do
-  chan <- newTChanIO
-  return Worker
-    { _chan = chan
-    , _currentStep = step --TODO: зарегистрировать воркер
-    }
+{-# INLINE broadcastEndRecieve #-}
+broadcastEndRecieve :: (StepState a k) -> IO ()
+broadcastEndRecieve step =
+  withCriticalSection
+    ( _nextChans step )
+    ( H.mapM_ $ atomically . flip writeTChan EndReceive . snd )
 
-run :: (k -> BSPM a k ()) -> BSPM a k r -> IO r
-run workers bspm = do
-  step <- newStep workers
-  worker <- newWorker step
-  result <- unBSPM bspm worker
-  join $ readIORef (_finalizer step)
-  return result
-
-endRecieve :: TChan (Message a) -> IO ()
+{-# INLINE endRecieve #-}
+endRecieve :: TChan (MessageWrapper a) -> IO ()
 endRecieve chan = skipToEnd
   where
     skipToEnd = do
-      msg <- atomically (readTChan chan)
+      msg <- atomically $ readTChan chan
       case msg of
-        EndReceive -> return () -- void $ putStrLn "got EndRecieve message."
+        EndReceive -> return ()
         _ -> skipToEnd
 
---TODO: сделать приватной.
-spawn :: BSPM a k () -> BSPM a k (Worker a k)
-spawn child = BSPM $ \this -> do
-  nextStep <- getRunOnce (_nextStep $ _currentStep this)
-  worker <- newWorker nextStep
-  atomicModifyIORef' (_finalizer $ _currentStep this) $ \finalizer ->
-    (finalizer >> {- putStrLn "Sending EndReceive to child worker" >>  -} atomically (writeTChan (_chan worker) EndReceive), ())
-  -- TODO: implement correct worker count protocol (e.g. take here, put in forked thread)
-  vc <- atomicModifyIORef' (_workerCount nextStep) $ \vc -> (vc + 1, vc + 1)
-  -- putStrLn $ "next step worker count " ++ (show vc)
-  forkIO $ do --TODO: protect with try-catch, mask async exceptions
-    unBSPM child worker
-    endRecieve $ _chan worker
-    workerCount <- atomicModifyIORef' (_workerCount nextStep) $ \vc -> (vc - 1, vc - 1)
-    -- liftIO $ putStrLn $  "worker count == " ++ (show workerCount)
-    when (workerCount == 0) $ do
-      join $ readIORef $ _finalizer nextStep
-      return ()
-  return worker
+{-# INLINE getWorkerChan #-}
+getWorkerChan :: ( Eq k, Hashable k ) => StepState a k -> k -> IO (TChan (MessageWrapper a))
+getWorkerChan step k = modifyCriticalSection (_nextChans step) $ \nextChans -> do
+  maybeChan <- H.lookup nextChans k
+  case maybeChan of
+    Just chan -> return (nextChans, chan)
+    Nothing -> do
+      nextStep <- getRunOnce (_nextStep step)
+      chan <- newTChanIO
+      mask_ $ do
+        atomicModifyIORef' (_activeWorkers nextStep) $ \a -> (a + 1, ())
+        forkIOWithUnmask $ \unmask -> finally
+          ( unmask $ do
+            unBSPM
+              (_workerFactory nextStep k)
+              WorkerState { _chan = chan, _currentStep = nextStep }
+            endRecieve chan )
+          ( do
+            c <-atomicModifyIORef' (_activeWorkers nextStep) $ \a -> (a - 1, a - 1)
+            when (c == 0) $ do
+              hasNextStep <- initialized $ _nextStep nextStep
+              if hasNextStep
+                then ( broadcastEndRecieve nextStep )
+                else atomically $ writeTChan (_rootChan nextStep) Halt )
+        H.insert nextChans k chan
+      return (nextChans, chan)
 
-send :: Worker a s -> a -> BSPM b s ()
-send worker =  BSPM . const . atomically . writeTChan (_chan worker) . DataMessage
+run :: (k -> BSPM a k ()) -> BSPM a k r -> IO r
+run workerFactory bspm = do
+  chan <- newTChanIO
+  step <- newStepState workerFactory chan
+  result <- finally
+    ( unBSPM bspm WorkerState { _chan = chan, _currentStep = step } )
+    ( broadcastEndRecieve step )
+  halt <- atomically $ readTChan chan
+  case halt of
+    Halt  -> return result
+    -- this should never happen
+    EndReceive -> error "BSPM.Engine.Local.run: EndReceive"
+    DataMessage _ -> error "BSPM.Engine.Local.run: DataMessage"
 
-sendTo :: ( Eq k, Hashable k ) => k -> a -> BSPM a k ()
-sendTo key message = do
-  this <- BSPM return
-  worker <- RS.getRunOnce (_workerSet $ _currentStep this) key
-  send worker message
+send :: ( Eq k, Hashable k ) => k -> a -> BSPM a k ()
+send k a = BSPM $ \worker -> do
+  chan <- getWorkerChan (_currentStep worker) k
+  atomically $ writeTChan chan $ DataMessage a
 
 receive :: BSPM a s (Maybe a)
 receive = BSPM $ \worker -> atomically $ do
@@ -146,3 +142,5 @@ receive = BSPM $ \worker -> atomically $ do
     EndReceive -> do
       unGetTChan (_chan worker) msg
       return Nothing
+    -- this should never happen
+    Halt -> error "BSPM.Engine.Local.receive: Halt"

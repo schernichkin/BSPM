@@ -28,7 +28,4 @@ main = do
   putStrLn "Loading graph.."
   graphPath <- getDataFileName "wiki-Vote.txt"
   graph <- withFile graphPath ReadMode readGraph
-  putStrLn "press any key to exit.."
   SSSP.runOnGraph graph 1000 8232 4332
-  --run SS.unit bspmRoot
-  void getLine

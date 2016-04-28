@@ -23,7 +23,6 @@ instance Monoid Estimate where
   a `mappend` Infinity = a
   a@(From _ aw) `mappend` b@(From _ bw) = if (aw <= bw) then a
                                                         else b
-
 data Message = PathToYou Int Double deriving ( Show, Eq )
 
 foldMessages :: Estimate -> BSPM Message Int Estimate
@@ -76,7 +75,7 @@ newVertextWorker graph maxWeight target = do
                   let ew = w + weight
                   when (ew < spw) $ do
                     -- liftIO $ putStrLn $ "Vertext " ++ (show k) ++  " will send new estimate to " ++ (show v)
-                    sendTo v $ PathToYou k ew
+                    send v $ PathToYou k ew
 
 runOnGraph :: ( Graph g
               , Vertex g ~ Int
@@ -91,4 +90,4 @@ runOnGraph graph maxWeight from to = do
                    ++ " to = " ++ (show to)
   worker <- newVertextWorker graph maxWeight to
   run worker $ do
-    sendTo from $ PathToYou 1 0
+    send from $ PathToYou from 0
