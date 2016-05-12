@@ -15,6 +15,21 @@ import Control.Monad
 import Data.Graph.Class
 import Data.MonoTraversable
 
+sssp :: ( Graph g )
+     => g
+     -> Vertex g
+     -> Vertex g
+     -> (Vertex g -> IO Bool)
+     -> (Edge g -> IO Bool)
+     -> Int
+     -> Double
+     -> IO ()
+     -> IO ()
+sssp graph source target vertexFilter edgeFilter maxHops maxWeight pathFound = do
+
+  return undefined
+
+
 data Estimate = Infinity | From !Int !Double deriving ( Show, Eq )
 
 instance Monoid Estimate where

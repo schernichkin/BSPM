@@ -18,7 +18,8 @@ data-files:          wiki-Vote.txt
 
 library
   hs-source-dirs:      src
-  exposed-modules:     BSPM
+  exposed-modules:     BSP
+                     , BSPM
                      , BSPM.Engine.Local
                      , BSPM.SSSP
                      , BSPM.Util
@@ -35,6 +36,7 @@ library
                      , bytestring
                      , hashable
                      , hashtables
+                     , indexed
                      , mono-traversable
                      , primitive
                      , transformers
