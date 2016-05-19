@@ -1,4 +1,4 @@
--- TODO: удалить, движок должен сам поддерживать блокировку 
+-- TODO: удалить, движок должен сам поддерживать блокировку
 module BSPM.Util.CountDown
   ( CountDown ()
   , newCountDown
@@ -22,7 +22,7 @@ newCountDown c = do
 decCountDown :: CountDown -> IO ()
 decCountDown cd = atomically $ do
   c <- readTVar $ _count cd
-  when (c /= 0) $ writeTVar (_count cd) (c -1)
+  when (c /= 0) $ writeTVar (_count cd) (c - 1)
 
 waitCountDown :: CountDown -> IO ()
 waitCountDown cd = atomically $ do
