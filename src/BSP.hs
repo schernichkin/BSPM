@@ -1,106 +1,101 @@
 {-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE NoImplicitPrelude #-}
-{-# LANGUAGE TypeFamilies      #-}
 
 module BSP
-    (
+    ( test
     ) where
 
-import           Control.Monad          (Monad)
-import qualified Control.Monad          as M
-import           Control.Monad.Indexed
+import           BSPM.Util.CountDown
+import           Control.Concurrent
+import           Control.Concurrent.MVar
+import           Control.Monad
 import           Control.Monad.IO.Class
+import           Data.IORef
+import           Data.Vector             (Vector)
+import qualified Data.Vector             as V
 import           Data.Void
-import           Prelude                hiding (Monad (..))
 
-instance (IxFunctor f) => Functor (f i i) where
-  fmap = imap
+data Peer a = Peer
+  {
+  --  _this  :: !PeerId
+  -- , _peers :: !(Vector PeerId)
+   _state :: !a
+  }
 
-instance (IxApplicative f) => Applicative (f i i) where
-  pure = ireturn
-  (<*>) = iap
+newtype PeerId = PeerId Int deriving ( Show )
 
-instance (IxMonad m) => Monad (m i i) where
-  (>>=) = (>>=)
-  return = ireturn
+newtype Process a b r = Process { unProcess :: Peer a -> IO r }
 
-return :: (IxPointed m) => a -> m i i a
-return = ireturn
+instance Functor (Process a b) where
+  fmap f m = Process $ fmap f . unProcess m
 
-(>>=) :: (IxMonad m) => m a b x -> (x -> m b c y) -> m a c y
-(>>=) = flip ibind
+instance Applicative (Process a b) where
+  pure = Process . const . return
+  f <*> g = Process $ \p -> unProcess f p <*> unProcess g p
 
-(>>) :: (IxMonad m) => m a b x -> m b c y -> m a c y
-(>>) = flip (ibind . const)
+instance Monad (Process a b) where
+  f >>= g = Process $ \p -> unProcess f p >>= flip unProcess p . g
 
-class Broadcast m where
-  type BroadcastMessage m
-  broadcast :: (BroadcastMessage m) -> m ()
+instance MonadIO (Process a b) where
+  liftIO = Process . const
+
+run :: (Monoid r) => Int -> Process () Void r -> IO r
+run n p = do
+  activeWorkers <- newCountDown n
+  resultRef <- newIORef mempty
+  let peers = V.generate n $ \i -> Peer
+        {
+        --  _this = PeerId i
+    --     , _peers = undefined
+         _state = ()
+        }
+  V.forM_ peers $ \peer -> forkIO $ do
+    r <- unProcess p peer -- >>= atomicModifyIORef' result (\a -> (undefined, undefined))
+    atomicModifyIORef' resultRef (\a -> (a `mappend` r, ()))
+    decCountDown activeWorkers
+  waitCountDown activeWorkers
+  readIORef resultRef
+
+-- this :: Process a b PeerId
+-- this = Process $ return . _this
+
+-- peers :: Process a b (Vector PeerId)
+-- peers = Process $ return . _peers
+
+read :: Process a b a
+read = Process $ return . _state
+
+write :: (Monoid b) => PeerId -> b -> Process a b ()
+write = error "BSP.write"
+
+step :: (Monoid x) => Process a b x -> (x -> Process b c r) -> Process a c r
+step = error "BSP.step"
+
+test = do
+  lock <- newMVar ()
+  run 10 $ do
+    liftIO $ withMVar lock $ const $ putStrLn "test"
+    return ()
+
+{-
+data Step a b r = Step
+
+instance Functor (Step a b) where
+  fmap f = const Step
+
+instance Applicative (Step a b) where
+  pure = const Step
+  (<*>) = const . const Step
+
+instance Monad (Step a b) where
+  (>>=) = const . const Step
 
 data Process a b r = Process
 
-instance IxFunctor Process where
-  imap f = const Process
+data PeerId = PeerId deriving ( Show )
 
-instance IxPointed Process where
-  ireturn = const Process
-
-instance IxApplicative Process where
-  iap a = const Process
-
-instance IxMonad Process where
-  ibind m = const Process
-
-instance MonadIO (Process i i) where
-  liftIO = const Process
-
-instance Broadcast (Process a b) where
-  type BroadcastMessage (Process a b) = b
-  broadcast = error "Broadcast (Process a b) => broadcast"
-
-data Worker a b r = Worker
-
-instance IxFunctor Worker where
-  imap f = const Worker
-
-instance IxPointed Worker where
-  ireturn = const Worker
-
-instance IxApplicative Worker where
-  iap a = const Worker
-
-instance IxMonad Worker where
-  ibind m = const Worker
-
-instance MonadIO (Worker i i) where
-  liftIO = const Worker
-
-data WorkerID
-
-read :: Worker a b a
-read = undefined
-
-run :: Int -> ([WorkerID] -> Process Void Void r) -> IO r
+run :: Int -> Process Void Void r -> IO r
 run = undefined
 
-step :: Worker a b r -> Process a b r
-step = undefined
-
-testWorker1 :: Worker i i ()
-testWorker1 = do
-  liftIO $ putStrLn "test worker"
-  return ()
-
-testWorker2 :: Worker i String ()
-testWorker2 = undefined
-
-testWorker3 :: Worker String i ()
-testWorker3 = undefined
-
-tessst :: Worker Void Void ()
-tessst = testWorker2 >> testWorker3
-
-runTestProcess = run 10 $ \workers -> do
-  step $ do
-    testWorker2 >> testWorker3
-  return ()
+this :: Step a b PeerId
+this = return PeerId
+-}
