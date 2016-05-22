@@ -2,62 +2,55 @@
 {-# LANGUAGE TypeFamilies          #-}
 
 module Data.Shards.Ordered.Internal
-  (
-    -- ** Binary search immutable arrays
-    binarySearch
-  , binarySearchBy
-  , binarySearchByBounds
+  ( OrderedShardEntry (..)
+  , OrderedShardMap (..)
   ) where
 
 import           Data.Bits
 import           Data.Key
-import           Data.Vector.Algorithms.Search (Comparison)
-import           Data.Vector.Generic           (Vector)
-import qualified Data.Vector.Generic           as V
-import           Data.Void
+import qualified Data.Vector as V
+import qualified Data.Vector.Generic as G
 
--- Вводная:
--- 1. Экземпляры Data.Key можно определять для конкретных типов векторов,
---    но не для класса Data.Vector.Generic.Vector потому что класс Vector
---    зависит от 2-х параметров, а все экземпляры Data.Key полиморфны по
---    типу значения.
--- 2. Для создания карты шардов использовать произвольный массив (возможно
---    unboxed, если тип данных шарды это позволяет).
--- 3. Функция поиска может работать с генерализованным вектором.
---    А Lookup - нет, потому что она полиморфная по типу элемента.
---    Может мне просто нужны собственные типы классов?
+data OrderedShardEntry k s = OrderedShardEntry
+  { _maxKey :: !k
+  , _shard  :: !s
+  }
 
+type instance Key (OrderedShardEntry k) = k
 
+data OrderedShardMap k s = OrderedShardMap
+  { _shards :: !(V.Vector (OrderedShardEntry k s))
+  }
 
-{-# INLINE binarySearch #-}
-binarySearch :: (Vector v e, Ord e)
-             => v e
-             -> e
-             -> Int
-binarySearch = binarySearchBy compare
+type instance Key (OrderedShardMap k) = k
 
-{-# INLINE binarySearchBy #-}
-binarySearchBy :: (Vector v e)
-               => Comparison e
-               -> v e
-               -> e
-               -> Int
-binarySearchBy cmp vec e = binarySearchByBounds cmp vec e 0 (V.length vec)
+instance Ord k => Lookup (OrderedShardMap k) where
+  lookup k f = Just $ getShard f k
 
-{-# INLINE binarySearchByBounds #-}
-binarySearchByBounds :: (Vector v e)
-                     => Comparison e
-                     -> v e
-                     -> e
+instance Ord k => Indexable (OrderedShardMap k) where
+  index = getShard
+
+{-# INLINE getShard #-}
+getShard :: Ord k => OrderedShardMap k s -> k -> s
+getShard f k = let v = _shards f
+                   i = binarySearchByKey _maxKey v k
+                   l = G.length v - 1
+               in _shard $ G.unsafeIndex v (min i l)
+
+{-# INLINE binarySearchByKey #-}
+binarySearchByKey :: ( G.Vector v (e k a)
+                     , Key (e k) ~ k
+                     , Ord k )
+                     => (e k a -> k)
+                     -> v (e k a)
+                     -> k
                      -> Int
-                     -> Int
-                     -> Int
-binarySearchByBounds cmp vec e = loop
+binarySearchByKey getKey v k = go 0 (G.length v)
   where
-    loop !l !u
-      | u <= l    = l
-      | otherwise = case V.unsafeIndex vec k `cmp` e of
-                      LT -> loop (k + 1) u
-                      EQ -> k
-                      GT -> loop l k
-      where k = (u + l) `shiftR` 1
+    go !l !r
+      | r <= l = l
+      | otherwise = case getKey (G.unsafeIndex v c) `compare` k of
+                      LT -> go (c + 1) r
+                      EQ -> c
+                      GT -> go l c
+      where c = (r + l) `shiftR` 1

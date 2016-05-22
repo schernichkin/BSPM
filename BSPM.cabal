@@ -33,7 +33,6 @@ library
                      , Data.Graph.Unboxed.Internal
                      , Data.Graph.Unboxed.Reader.WikiVote
                      , Data.Shards.Ordered
-                     , Data.Shards.Ordered.Class
                      , Data.Shards.Ordered.Internal
   build-depends:       base >= 4.7 && < 5
                      , bytestring
@@ -47,6 +46,7 @@ library
                      , vector
                      , vector-algorithms
   default-language:    Haskell2010
+  ghc-options:       -Wall
 
 executable BSPM-exe
   hs-source-dirs:      app
@@ -68,6 +68,7 @@ test-suite BSPM-test
   build-depends:       base
                      , BSPM
                      , HUnit
+                     , keys
                      , QuickCheck
                      , test-framework
                      , test-framework-hunit
