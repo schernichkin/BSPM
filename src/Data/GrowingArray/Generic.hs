@@ -9,52 +9,64 @@ module Data.GrowingArray.Generic
   ) where
 
 import           Control.Monad.Primitive
+import Data.Primitive.MutVar
 import           Data.Vector.Generic (Vector, Mutable)
-import qualified Data.Vector.Generic         as G
+import qualified Data.Vector.Generic         as V
 import           Data.Vector.Generic.Mutable (MVector)
-import qualified Data.Vector.Generic.Mutable as V
+import qualified Data.Vector.Generic.Mutable as MV
 
-data GrowingArray v a = GrowingArray
-  { _items :: !(v a)
-  , _count :: !Int
+data GrowingArray s v a = GrowingArray
+  { _items :: !(MutVar s (v s a))
+  , _count :: !(MutVar s Int)
   }
 
 {-# INLINE new #-}
-new :: (PrimMonad m, MVector v a) => Int -> m (GrowingArray (v (PrimState m)) a)
+new :: (PrimMonad m, MVector v a)
+    => Int -> m (GrowingArray (PrimState m) v a)
 new c = do
-  items <- V.new c
+  itemsVar <- MV.new c >>= newMutVar
+  countVar <- newMutVar 0
   return GrowingArray
-    { _items = items
-    , _count = 0
+    { _items = itemsVar
+    , _count = countVar
     }
 
 {-# INLINE newSingleton #-}
-newSingleton :: (PrimMonad m, MVector v a) => a -> m (GrowingArray (v (PrimState m)) a)
+newSingleton :: (PrimMonad m, MVector v a)
+             => a -> m (GrowingArray (PrimState m) v a)
 newSingleton e = do
-  GrowingArray {..} <- new 1
-  V.unsafeWrite _items 0 e
+  items <- MV.new 1
+  itemsVar <- newMutVar items
+  MV.unsafeWrite items 0 e
+  countVar <- newMutVar 1
   return GrowingArray
-    { _items = _items
-    , _count = 1
+    { _items = itemsVar
+    , _count = countVar
     }
 
 {-# INLINE insert #-}
 insert :: (PrimMonad m, MVector v a)
-       => GrowingArray (v (PrimState m)) a
+       => GrowingArray (PrimState m) v a
        -> a
-       -> m (GrowingArray (v (PrimState m)) a)
+       -> m ()
 insert GrowingArray{..} e = do
-  edges <- case V.length _items of
-    0 -> V.unsafeGrow _items 1
-    l | l /= _count -> return _items
-      | otherwise   -> V.unsafeGrow _items (_count * 2)
-  V.unsafeWrite edges _count e
-  return GrowingArray
-    { _items = edges
-    , _count = _count + 1
-    }
+  count <- readMutVar _count
+  items <- do
+    currentItems <- readMutVar _items
+    let growBy factor = do
+          newItems <- MV.unsafeGrow currentItems factor
+          writeMutVar _items newItems
+          return newItems
+    case MV.length currentItems of
+      0 -> growBy 1
+      l | l /= count -> return currentItems
+        | otherwise  -> growBy (count * 2)
+  MV.unsafeWrite items count e
+  writeMutVar _count (count + 1)
 
-{-# INLINE unsafeFreeze #-}
 unsafeFreeze :: (PrimMonad m, Vector v a)
-             => GrowingArray (Mutable v (PrimState m)) a -> m (v a)
-unsafeFreeze GrowingArray{..} = G.unsafeFreeze $ V.unsafeTake _count _items
+             => GrowingArray (PrimState m) (Mutable v) a -> m (v a)
+unsafeFreeze GrowingArray{..} = do
+  count <- readMutVar _count
+  currentItems <- readMutVar _items
+  V.unsafeFreeze $ MV.unsafeTake count currentItems

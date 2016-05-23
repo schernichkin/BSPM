@@ -33,7 +33,6 @@ library
                      , Data.Graph.Unboxed.Internal
                      , Data.Graph.Unboxed.Reader.WikiVote
                      , Data.GrowingArray.Generic
-                     , Data.GrowingArray.Unboxed
                      , Data.Shards.Ordered
                      , Data.Shards.Ordered.Internal
                      , Data.Vector.Utils
@@ -51,7 +50,7 @@ library
   default-language:    Haskell2010
   ghc-options:       -Wall
 
-executable BSPM-exe
+executable bspm
   hs-source-dirs:      app
   main-is:             Main.hs
   ghc-options:         -threaded -rtsopts -with-rtsopts=-N
