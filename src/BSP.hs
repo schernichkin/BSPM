@@ -1,7 +1,7 @@
 {-# LANGUAGE FlexibleInstances #-}
 
 module BSP
-    ( test
+    ( run
     ) where
 
 import           BSPM.Util.CountDown
@@ -38,9 +38,16 @@ instance Monad (Process a b) where
 instance MonadIO (Process a b) where
   liftIO = Process . const
 
-run :: (Monoid r) => Int -> Process () Void r -> IO r
-run n p = do
+-- TODO: возможно на фход лучше скармливать foldable,
+-- который будет использоваться дял аргументов воркеров
+run :: (Monoid r, Foldable f) => f a -> (a -> Process () Void r) -> IO r
+run f p = do
+  let n = length f
   activeWorkers <- newCountDown n
+  forM_ f $ \a -> forkIO $ do
+
+    decCountDown activeWorkers
+  {-
   resultRef <- newIORef mempty
   let peers = V.generate n $ \i -> Peer
         {
@@ -52,29 +59,17 @@ run n p = do
     r <- unProcess p peer -- >>= atomicModifyIORef' result (\a -> (undefined, undefined))
     atomicModifyIORef' resultRef (\a -> (a `mappend` r, ()))
     decCountDown activeWorkers
-  waitCountDown activeWorkers
+
   readIORef resultRef
+  -}
+  waitCountDown activeWorkers
+  return $ mempty
 
 -- this :: Process a b PeerId
 -- this = Process $ return . _this
 
 -- peers :: Process a b (Vector PeerId)
 -- peers = Process $ return . _peers
-
-read :: Process a b a
-read = Process $ return . _state
-
-write :: (Monoid b) => PeerId -> b -> Process a b ()
-write = error "BSP.write"
-
-step :: (Monoid x) => Process a b x -> (x -> Process b c r) -> Process a c r
-step = error "BSP.step"
-
-test = do
-  lock <- newMVar ()
-  run 10 $ do
-    liftIO $ withMVar lock $ const $ putStrLn "test"
-    return ()
 
 {-
 data Step a b r = Step
@@ -99,3 +94,13 @@ run = undefined
 this :: Step a b PeerId
 this = return PeerId
 -}
+
+
+read :: Process a b a
+read = Process $ return . _state
+
+write :: (Monoid b) => PeerId -> b -> Process a b ()
+write = error "BSP.write"
+
+step :: (Monoid x) => Process a b x -> (x -> Process b c r) -> Process a c r
+step = error "BSP.step"

@@ -1,7 +1,7 @@
 module Main where
 
-import           BSPM.Engine.Local
-import           BSPM.SSSP                          as SSSP
+import           BSP
+import           Control.Concurrent.MVar
 import           Control.Monad
 import           Control.Monad.IO.Class
 import           Data.Graph.Unboxed
@@ -24,12 +24,23 @@ newGraph = buildSharded 4 $ do
   addEdges 5 [(4, 6), (6, 9)]
   addEdges 6 [(1, 14), (3, 2), (5, 9)]
 
+
+test shardes = do
+  lock <- newMVar ()
+  run shardes $ \sharde -> do
+    liftIO $ withMVar lock $ const $ putStrLn "test"
+    return ()
+
+
 main :: IO ()
 main = do
-  g <- newGraph
-  print g
+  shardes <- newGraph
+  test shardes
   return ()
-  -- putStrLn "Loading graph.."
-  -- graphPath <- getDataFileName "wiki-Vote.txt"
-  -- graph <- withFile graphPath ReadMode readGraph
+  {-
+  putStrLn "Loading graph.."
+  graphPath <- getDataFileName "wiki-Vote.txt"
+  graph <- withFile graphPath ReadMode (readSharded 10)
+  print graph
   -- SSSP.runOnGraph graph 1000 8232 4332
+  -}

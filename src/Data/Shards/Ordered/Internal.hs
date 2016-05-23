@@ -31,6 +31,10 @@ instance Ord k => Lookup (OrderedShardMap k) where
 instance Ord k => Indexable (OrderedShardMap k) where
   index = getShard
 
+instance Foldable (OrderedShardMap k) where
+  foldr f b = foldr (f . _shard) b . _shards
+  length = V.length . _shards
+
 {-# INLINE getShard #-}
 getShard :: Ord k => OrderedShardMap k s -> k -> s
 getShard f k = let v = _shards f
