@@ -32,6 +32,8 @@ library
                      , Data.Graph.Unboxed.Builder
                      , Data.Graph.Unboxed.Internal
                      , Data.Graph.Unboxed.Reader.WikiVote
+                     , Data.GrowingArray.Generic
+                     , Data.GrowingArray.Unboxed
                      , Data.Shards.Ordered
                      , Data.Shards.Ordered.Internal
   build-depends:       base >= 4.7 && < 5
