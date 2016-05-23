@@ -15,11 +15,13 @@ import           Data.Hashable
 import qualified Data.HashTable.IO            as H
 import           Data.IORef
 import           Data.Shards.Ordered.Internal
-import           Data.Vector                  (Vector)
+import qualified Data.Vector                  as V
+import           Data.Vector.Algorithms.Intro
+import qualified Data.Vector.Mutable          as MV
 import           Data.Vector.Unboxed.Mutable  (Unbox)
-import qualified Data.Vector.Unboxed.Mutable  as UV
+import qualified Data.Vector.Unboxed.Mutable  as UMV
 
-type MUGraph v e = HashTable v (IORef (GrowingArray (UV.MVector (PrimState IO)) e))
+type MUGraph v e = HashTable v (IORef (GrowingArray (UMV.MVector (PrimState IO)) e))
 
 newtype UGraphBuilder v e a = UGraphBuilder { unUGraphBuilder :: MUGraph v e -> IO a }
 
@@ -60,7 +62,7 @@ build builder = do
     H.insert dst v edges ) src
   return $ UGraph dst
 
-toVector :: HashTable k v -> IO (Vector v)
+toVector :: HashTable k e -> IO (V.Vector e)
 toVector h = do
   res <- new 1
   H.mapM_ ( \(_, v) -> insert res v) h
@@ -69,11 +71,14 @@ toVector h = do
 buildSharded :: ( Ord v, Hashable v, Unbox e )
              => UGraphBuilder v e ()
              -> Int
-             -> IO (UGraph v e)
-buildSharded builder numShards = do
+             -> IO (OrderedShardMap v (UGraph v e))
+buildSharded builder maxShards = do
   src <- H.new
   unUGraphBuilder builder src
-  vvv <- toVector src
+  vertices <- toVector src >>= V.unsafeThaw
+  let numShards = min maxShards $ MV.length vertices
+  -- shardes
+  -- kkk <- V.generate (min )
       -- теперь этот вектор нужно мапнуть и поделить на
       -- шарды
   return undefined

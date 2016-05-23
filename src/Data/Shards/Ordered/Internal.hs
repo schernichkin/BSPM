@@ -1,15 +1,14 @@
-{-# LANGUAGE BangPatterns          #-}
-{-# LANGUAGE TypeFamilies          #-}
+{-# LANGUAGE TypeFamilies #-}
 
 module Data.Shards.Ordered.Internal
   ( OrderedShardEntry (..)
   , OrderedShardMap (..)
   ) where
 
-import           Data.Bits
 import           Data.Key
-import qualified Data.Vector as V
+import qualified Data.Vector         as V
 import qualified Data.Vector.Generic as G
+import           Data.Vector.Utils
 
 data OrderedShardEntry k s = OrderedShardEntry
   { _maxKey :: !k
@@ -36,21 +35,3 @@ getShard f k = let v = _shards f
                    i = binarySearchByKey _maxKey v k
                    l = G.length v - 1
                in _shard $ G.unsafeIndex v (min i l)
-
-{-# INLINE binarySearchByKey #-}
-binarySearchByKey :: ( G.Vector v (e k a)
-                     , Key (e k) ~ k
-                     , Ord k )
-                     => (e k a -> k)
-                     -> v (e k a)
-                     -> k
-                     -> Int
-binarySearchByKey getKey v k = go 0 (G.length v)
-  where
-    go !l !r
-      | r <= l = l
-      | otherwise = case getKey (G.unsafeIndex v c) `compare` k of
-                      LT -> go (c + 1) r
-                      EQ -> c
-                      GT -> go l c
-      where c = (r + l) `shiftR` 1

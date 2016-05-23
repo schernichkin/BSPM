@@ -36,6 +36,7 @@ library
                      , Data.GrowingArray.Unboxed
                      , Data.Shards.Ordered
                      , Data.Shards.Ordered.Internal
+                     , Data.Vector.Utils
   build-depends:       base >= 4.7 && < 5
                      , bytestring
                      , hashable
