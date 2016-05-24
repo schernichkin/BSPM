@@ -1,106 +1,96 @@
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE TypeFamilies      #-}
 
 module BSP
-    ( run
+    ( Peer
+    , run
+    , read -- TODO: change names to not conflict with prelude
+    , step
+    , peerId
+    , thisId
+    , write
     ) where
 
 import           BSPM.Util.CountDown
 import           Control.Concurrent
-import           Control.Concurrent.MVar
 import           Control.Monad
+import           Control.Monad.Fix
 import           Control.Monad.IO.Class
 import           Data.IORef
-import           Data.Vector             (Vector)
-import qualified Data.Vector             as V
-import           Data.Void
+import           Data.Key
+import           Data.Traversable
+import           Prelude                hiding (read)
 
-data Peer a = Peer
-  {
-  --  _this  :: !PeerId
-  -- , _peers :: !(Vector PeerId)
-   _state :: !a
+data Peer t a b = Peer
+  { _peerId       :: !Int
+  , _currentState :: !a
+  , _nextState    :: !(IORef b)
+  , _peers        :: !(t (Peer t a b))
   }
 
-newtype PeerId = PeerId Int deriving ( Show )
+newtype Process t a b r = Process { unProcess :: Peer t a b -> IO r }
 
-newtype Process a b r = Process { unProcess :: Peer a -> IO r }
-
-instance Functor (Process a b) where
+instance Functor (Process t a b) where
   fmap f m = Process $ fmap f . unProcess m
 
-instance Applicative (Process a b) where
+instance Applicative (Process t a b) where
   pure = Process . const . return
   f <*> g = Process $ \p -> unProcess f p <*> unProcess g p
 
-instance Monad (Process a b) where
+instance Monad (Process t a b) where
   f >>= g = Process $ \p -> unProcess f p >>= flip unProcess p . g
 
-instance MonadIO (Process a b) where
+instance MonadIO (Process t a b) where
   liftIO = Process . const
 
--- TODO: возможно на фход лучше скармливать foldable,
--- который будет использоваться дял аргументов воркеров
-run :: (Monoid r, Foldable f) => f a -> (a -> Process () Void r) -> IO r
-run f p = do
-  let n = length f
-  activeWorkers <- newCountDown n
-  forM_ f $ \a -> forkIO $ do
+createPeers :: ( Traversable t ) => t a -> IO (Int, t (a, Peer t () ()))
+createPeers t = do
+  peerCounter <- newIORef 0
+  peers <- mfix $ \peers -> forM t $ \a -> do
+    i <- readIORef peerCounter
+    writeIORef peerCounter (i + 1)
+    stateRef <- newIORef mempty
+    return (a, Peer
+      { _peerId = i
+      , _currentState = ()
+      , _nextState = stateRef
+      , _peers = fmap snd peers
+      } )
+  peerCount <- readIORef peerCounter
+  return (peerCount, peers)
 
-    decCountDown activeWorkers
-  {-
-  resultRef <- newIORef mempty
-  let peers = V.generate n $ \i -> Peer
-        {
-        --  _this = PeerId i
-    --     , _peers = undefined
-         _state = ()
-        }
-  V.forM_ peers $ \peer -> forkIO $ do
-    r <- unProcess p peer -- >>= atomicModifyIORef' result (\a -> (undefined, undefined))
-    atomicModifyIORef' resultRef (\a -> (a `mappend` r, ()))
-    decCountDown activeWorkers
+run :: ( Monoid r, Traversable t )
+    => t a
+    -> (a -> Process t () () r)
+    -> IO r
+run t p = do
+  (n, peers) <- createPeers t
+  workerCounter <- newCountDown n
+  forM_ peers $ \(a, peer) -> void $ forkFinally
+    ( let process = unProcess $ p a
+      in process peer )
+    ( const $ decCountDown workerCounter )
+  waitCountDown workerCounter
+  return mempty
 
-  readIORef resultRef
-  -}
-  waitCountDown activeWorkers
-  return $ mempty
+read :: Process t a b a
+read = Process $ return . _currentState
 
--- this :: Process a b PeerId
--- this = Process $ return . _this
+write :: ( Indexable t, Monoid b )
+      => Key t
+      -> b
+      -> Process t a b ()
+write k b = Process $ \peer -> atomicModifyIORef'
+  (_nextState $ index (_peers peer) k)
+  (\a -> (a `mappend` b, ()))
 
--- peers :: Process a b (Vector PeerId)
--- peers = Process $ return . _peers
+step :: Process t a b x -> (x -> Process t b c r) -> Process t a c r
+step p f = do
+   
+  error "BSP.step"
 
-{-
-data Step a b r = Step
+thisId :: Process t a b Int
+thisId = Process $ return . _peerId
 
-instance Functor (Step a b) where
-  fmap f = const Step
-
-instance Applicative (Step a b) where
-  pure = const Step
-  (<*>) = const . const Step
-
-instance Monad (Step a b) where
-  (>>=) = const . const Step
-
-data Process a b r = Process
-
-data PeerId = PeerId deriving ( Show )
-
-run :: Int -> Process Void Void r -> IO r
-run = undefined
-
-this :: Step a b PeerId
-this = return PeerId
--}
-
-
-read :: Process a b a
-read = Process $ return . _state
-
-write :: (Monoid b) => PeerId -> b -> Process a b ()
-write = error "BSP.write"
-
-step :: (Monoid x) => Process a b x -> (x -> Process b c r) -> Process a c r
-step = error "BSP.step"
+peerId :: (Indexable t) => Key t -> Process t a b Int
+peerId k = Process $ return . _peerId . flip index k . _peers

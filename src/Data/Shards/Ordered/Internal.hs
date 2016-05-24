@@ -1,4 +1,5 @@
-{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE TypeFamilies    #-}
 
 module Data.Shards.Ordered.Internal
   ( OrderedShardEntry (..)
@@ -17,6 +18,12 @@ data OrderedShardEntry k s = OrderedShardEntry
   , _shard  :: !s
   } deriving ( Show )
 
+instance Functor (OrderedShardEntry k) where
+  fmap f OrderedShardEntry{..} = OrderedShardEntry
+    { _maxKey = _maxKey
+    , _shard = f _shard
+    }
+
 type instance Key (OrderedShardEntry k) = k
 
 data OrderedShardMap k s = OrderedShardMap
@@ -34,6 +41,13 @@ instance Ord k => Indexable (OrderedShardMap k) where
 instance Foldable (OrderedShardMap k) where
   foldr f b = foldr (f . _shard) b . _shards
   length = V.length . _shards
+
+instance Functor (OrderedShardMap k) where
+  fmap f = OrderedShardMap . fmap (fmap f) . _shards
+
+instance Traversable (OrderedShardMap k) where
+  traverse f = let g e = OrderedShardEntry (_maxKey e) <$> f (_shard e)
+               in fmap OrderedShardMap . traverse g . _shards
 
 {-# INLINE getShard #-}
 getShard :: Ord k => OrderedShardMap k s -> k -> s

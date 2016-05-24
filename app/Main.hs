@@ -3,12 +3,14 @@ module Main where
 import           BSP
 import           Control.Concurrent.MVar
 import           Control.Monad
+import           Control.Monad.Fix
 import           Control.Monad.IO.Class
 import           Data.Graph.Unboxed
 import           Data.Graph.Unboxed.Builder
 import           Data.Graph.Unboxed.Internal
 import           Data.Graph.Unboxed.Reader.WikiVote
 import qualified Data.HashTable.IO                  as H
+import           Data.Key
 import           Data.Map.Strict                    as Map
 import           Data.Shards.Ordered
 import           Data.Void
@@ -24,18 +26,33 @@ newGraph = buildSharded 4 $ do
   addEdges 5 [(4, 6), (6, 9)]
   addEdges 6 [(1, 14), (3, 2), (5, 9)]
 
-
-test shardes = do
+--test :: (Traversable t, Indexable t) => t PeerId -> Key t -> Key t -> IO ()
+test shardes src dst = do
   lock <- newMVar ()
-  run shardes $ \sharde -> do
-    liftIO $ withMVar lock $ const $ putStrLn "test"
+  run shardes $ \a -> do
+    i <- thisId
+    srcSharde <- peerId src
+    dstSharde <- peerId dst
+    liftIO $ withMVar lock $ const $ do
+      putStrLn $ show i ++ " ------------------------"
+      when (srcSharde == i) $ putStrLn "Has shource"
+      when (dstSharde == i) $ putStrLn "Has target"
     return ()
 
+data TestData = TestData
+  { _a :: !Int
+  , _b :: ![TestData]
+  } deriving ( Show )
+
+testFix :: IO [TestData]
+testFix = mfix (\a -> forM [1::Int,2,3] (\b -> do
+  print b
+  return $ TestData  b  a  ))
 
 main :: IO ()
 main = do
   shardes <- newGraph
-  test shardes
+  test shardes 1 5
   return ()
   {-
   putStrLn "Loading graph.."

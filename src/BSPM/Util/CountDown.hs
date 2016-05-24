@@ -1,4 +1,3 @@
--- TODO: удалить, движок должен сам поддерживать блокировку
 module BSPM.Util.CountDown
   ( CountDown ()
   , newCountDown
@@ -6,9 +5,9 @@ module BSPM.Util.CountDown
   , waitCountDown
   ) where
 
-import Control.Concurrent.STM.TVar
-import Control.Monad
-import Control.Monad.STM
+import           Control.Concurrent.STM.TVar
+import           Control.Monad
+import           Control.Monad.STM
 
 newtype CountDown = CountDown { _count :: TVar Int }
 
