@@ -19,11 +19,13 @@ data-files:          wiki-Vote.txt
 library
   hs-source-dirs:      src
   exposed-modules:     BSP
+                     , BSP.Util.Barrier
+                     , BSP.Util.CountDown
+                     , BSP.Util.InitOnce
                      , BSPM
                      , BSPM.Engine.Local
                      , BSPM.SSSP
                      , BSPM.Util
-                     , BSPM.Util.CountDown
                      , BSPM.Util.CriticalSection
                      , BSPM.Util.RunOnce
 

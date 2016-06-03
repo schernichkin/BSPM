@@ -16,7 +16,7 @@ import           Data.Shards.Ordered
 import           Data.Void
 import           Paths_BSPM
 import           System.IO
-
+{-
 newGraph :: IO (OrderedShardMap Int (UGraph Int (Int, Double)))
 newGraph = buildSharded 4 $ do
   addEdges 1 [(2, 7), (3, 9), (6, 14)]
@@ -61,3 +61,10 @@ main = do
   print graph
   -- SSSP.runOnGraph graph 1000 8232 4332
   -}
+-}
+
+data Worker i o = forall Worker 
+
+main :: IO ()
+main = do
+  return ()

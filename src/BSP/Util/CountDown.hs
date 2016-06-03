@@ -1,4 +1,4 @@
-module BSPM.Util.CountDown
+module BSP.Util.CountDown
   ( CountDown ()
   , newCountDown
   , decCountDown

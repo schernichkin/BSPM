@@ -1,103 +1,91 @@
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE TypeFamilies      #-}
+{-# LANGUAGE ExistentialQuantification  #-}
+{-# LANGUAGE FlexibleInstances          #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE TypeFamilies               #-}
 
 module BSP
-    ( Peer
-    , run
-    , read -- TODO: change names to not conflict with prelude
+    ( Process
+    , Step
+--      run
+--    , read -- TODO: change names to not conflict with prelude
     , step
-    , peerId
-    , thisId
-    , write
+--    , peerId
+--    , thisId
+--    , write
     ) where
 
-import           BSPM.Util.CountDown
-import           Control.Concurrent
+import           BSP.Util.CountDown
+import           BSP.Util.InitOnce
+import           Control.Category
 import           Control.Monad
 import           Control.Monad.Fix
 import           Control.Monad.IO.Class
+import           Control.Monad.Trans.Reader
 import           Data.IORef
-import           Data.Key
-import           Data.Traversable
-import           Prelude                hiding (read)
+import           Prelude                    hiding (read, (.))
 
-data Peer t a b = Peer
-  { _peerId       :: !Int
-  , _currentState :: !a
-  , _nextState    :: !(IORef b)
-  , _peers        :: !(t (Peer t a b))
+-- Предположения для структуры данных для шага.
+-- 1. Будет производиться много записей в shared state пира с разрешением по id,
+--    операция записи должна производится максимально быстро.
+-- 2. Будет мало шагов и мало пиров внутри шага, скорость перехода от шага к шагу
+--    не критична.
+
+-- Исходя из этого:
+-- 1. Можно строить специализированные структуры данных для выполнения шага.
+-- 2. Комбинация двух шагов шагом не является, построение для неё специализированной
+--    структуры смысла не имеет.
+-- 3. Переиспользовать нитки или вызывать forkIO на каждом шаге - не критично.
+
+-- Проблемы:
+-- 1. Нужно уметь восстанавливать исходную структуру из массива.
+--    Решение:
+--      Для этого можно использовать исходную структуру при условии что она Traversable.
+-- 2. Использовать fmap и zip (zip может быть неестественным для шардов)
+-- 3. Чистый fmap. Единственная проблема с восстановлением структуры в том, что её
+--    ноды имеют рекурсивные ссылки на саму структуру. Это решается через fix.
+--    _peers можно вообще вынести за пределы структуры и фмапнуть отдельно.
+
+data PeerState t i o = PeerState
+  { _currentState :: !i
+  , _sharedState  :: !(t (IORef o))
   }
 
-newtype Process t a b r = Process { unProcess :: Peer t a b -> IO r }
+newtype Step t i o r = Step { unStep :: ReaderT (PeerState t i o) IO r }
+    deriving (Functor, Applicative, Monad, MonadIO)
 
-instance Functor (Process t a b) where
-  fmap f m = Process $ fmap f . unProcess m
+runStep :: ( Traversable t, Monoid o ) => (a -> Step t i o r) -> t (i, a) -> IO (t (o, r))
+runStep step t = do
+  counter <- newCountDown $ length t
+  mfix $ \s -> forM t $ \(i, a) -> do
+    let peerState = PeerState i s
+    runReaderT (unStep $ step a) peerState
+    newIORef mempty
 
-instance Applicative (Process t a b) where
-  pure = Process . const . return
-  f <*> g = Process $ \p -> unProcess f p <*> unProcess g p
+  return undefined
 
-instance Monad (Process t a b) where
-  f >>= g = Process $ \p -> unProcess f p >>= flip unProcess p . g
+type family Fst a where Fst (a, b) = a
+type family Snd a where Snd (a, b) = b
 
-instance MonadIO (Process t a b) where
-  liftIO = Process . const
+-- IO нужна для создания примитивов синхронизации, используемых процессом.
+data Process (t :: * -> *) a b = Process { unProcess :: IO (Snd a -> Step t (Fst a) (Fst b) (Snd b)) }
 
-createPeers :: ( Traversable t ) => t a -> IO (Int, t (a, Peer t () ()))
-createPeers t = do
-  peerCounter <- newIORef 0
-  peers <- mfix $ \peers -> forM t $ \a -> do
-    i <- readIORef peerCounter
-    writeIORef peerCounter (i + 1)
-    stateRef <- newIORef mempty
-    return (a, Peer
-      { _peerId = i
-      , _currentState = ()
-      , _nextState = stateRef
-      , _peers = fmap snd peers
-      } )
-  peerCount <- readIORef peerCounter
-  return (peerCount, peers)
+step :: (a -> Step t i o r) -> Process t (i, a) (o, r)
+step = Process . return
 
-run :: ( Monoid r, Traversable t )
-    => t a
-    -> (a -> Process t () () r)
-    -> IO r
-run t p = do
-  (n, peers) <- createPeers t
-  workerCounter <- newCountDown n
-  forM_ peers $ \(a, peer) -> void $ forkFinally
-    ( let process = unProcess $ p a
-      in process peer )
-    ( const $ decCountDown workerCounter )
-  waitCountDown workerCounter
-  return mempty
+data SyncPoint t a i o r = SyncPoint
+  { _firstStep :: a -> Step t i o r
+  }
 
-read :: Process t a b a
-read = Process $ return . _currentState
+instance Category (Process t) where
+  id = Process $ return return
 
-write :: ( Indexable t, Monoid b )
-      => Key t
-      -> b
-      -> Process t a b ()
-write k b = Process $ \peer -> atomicModifyIORef'
-  (_nextState $ index (_peers peer) k)
-  (\a -> (a `mappend` b, ()))
-
-step :: Process t a b x -> (x -> Process t b c r) -> Process t a c r
-step p f = do
-  -- TODO: необходимо дождаться завершения всех процессов предыдущего шага,
-  -- создать новую структуру пиров и запустить с ней следующий шаг.
-  -- каждый из процессов знает свой результат, но ему еще нужна структура всех пиров,
-  -- которая может быть построена только после того, как все процессы завершат работу.
-  -- для построения такой структуры процессы могут писать свои результаты в массив,
-  -- после того, как все результаты будут собраны, необходимо построить структуру,
-  -- построить массив пиров и оповестить процессы о том, что они могут забрать свои
-  -- пиры из массива.
-  error "BSP.step"
-
-thisId :: Process t a b Int
-thisId = Process $ return . _peerId
-
-peerId :: (Indexable t) => Key t -> Process t a b Int
-peerId k = Process $ return . _peerId . flip index k . _peers
+  f . g = Process $ do
+    syncPointOnce <- newInitOnce
+    return $ \a -> do
+      syncPoint <- liftIO $ getInitOnce syncPointOnce $ do
+        firstStep <- unProcess g
+        return SyncPoint
+          { _firstStep = firstStep
+          }
+      let process = _firstStep syncPoint a
+      undefined

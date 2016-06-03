@@ -5,9 +5,9 @@ module BSPM.Util.RunOnce
   , initialized
   ) where
 
-import Control.Concurrent.STM.TVar
-import Control.Exception
-import Control.Monad.STM
+import           Control.Concurrent.STM.TVar
+import           Control.Exception
+import           Control.Monad.STM
 
 newtype RunOnce a = RunOnce { unRunOnce :: TVar (RunOnceToken a) }
 
