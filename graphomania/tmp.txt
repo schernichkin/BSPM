@@ -1,0 +1,2 @@
+конвертирование:
+$ stack exec graphomania -- convert shumov ~/projects/graphomania/graphomania/data/shumov/graph.bin be shumov ~/projects/graphomania/graphomania/data/shumov/graph_le.bin le

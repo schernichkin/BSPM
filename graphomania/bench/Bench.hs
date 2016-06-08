@@ -18,8 +18,8 @@ import           Data.Word
 import           Foreign.Marshal.Alloc
 import           Foreign.Ptr
 import           Foreign.Storable
-import           System.IO
 import           Paths_graphomania
+import           System.IO
 
 populateHashtable :: forall h . HashTable h => Proxy h -> Int -> IO ()
 populateHashtable _ c = do

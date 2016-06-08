@@ -29,9 +29,15 @@ library
                      , Data.Shards.Ordered
                      , Data.Shards.Ordered.Internal
                      , Data.Vector.Utils
+                     , Graphomania.Convert
+                     , Graphomania.Main
+                     , Graphomania.Shumov
+                     , Graphomania.Shumov.Binary
+                     , Graphomania.Shumov.Internal
   build-depends:       base >= 4.7 && < 5
                        -- 0.8.4.0 is absolutely required due to following fix: https://github.com/kolmodin/binary/commit/7532daa8789e5199109bb1fcde367d71effb07e2
                      , binary >= 0.8.4.0
+                     , cpu
                      , bsp
                      , bytestring
                      , hashable
@@ -39,18 +45,20 @@ library
                      , keys
                      , mono-traversable
                      , mwc-random
+                     , optparse-applicative
                      , primitive
                      , stm
+                     , tagged
                      , transformers
                      , vector
                      , vector-algorithms
   default-language:    Haskell2010
-  ghc-options:       -Wall -O2
+  ghc-options:       -Wall -O
 
 executable graphomania
   hs-source-dirs:      app
   main-is:             Main.hs
-  ghc-options:         -Wall -O2 -threaded -rtsopts
+  ghc-options:         -Wall -O -threaded -rtsopts
   build-depends:       base
                      , containers
                      , graphomania
