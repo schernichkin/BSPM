@@ -3,7 +3,6 @@
 
 module Main where
 
-import           BSP
 import           Control.Concurrent.MVar
 import           Control.Monad
 import           Control.Monad.Fix
@@ -19,7 +18,6 @@ import qualified Data.Vector                 as V
 import           Data.Vector.Algorithms.Heap as VA
 import qualified Data.Vector.Mutable         as MV
 import           Data.Void
-import           Paths_BSPM
 import           System.IO
 import           System.TimeIt
 

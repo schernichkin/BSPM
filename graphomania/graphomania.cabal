@@ -1,14 +1,14 @@
-name:                BSPM
+name:                graphomania
 version:             0.1.0.0
-synopsis:            Bulk synchronous messaging
+synopsis:            Graph processing library
 description:         Please see README.md
-homepage:            https://github.com/schernichkin/BSPM#readme
+homepage:            https://github.com/schernichkin/graphomania#readme
 license:             BSD3
 license-file:        LICENSE
 author:              Stanislav Chernichkin
 maintainer:          schernichkin@gmail.com
 copyright:           Copyright (C) 2016 Stanislav Chernichkin
-category:            Concurrency
+category:            Graphs
 build-type:          Simple
 -- extra-source-files:
 cabal-version:       >=1.10
@@ -18,18 +18,7 @@ data-files:          wiki-Vote.txt
 
 library
   hs-source-dirs:      src
-  exposed-modules:     BSP
-                     , BSP.Util.Barrier
-                     , BSP.Util.CountDown
-                     , BSP.Util.InitOnce
-                     , BSPM
-                     , BSPM.Engine.Local
-                     , BSPM.SSSP
-                     , BSPM.Util
-                     , BSPM.Util.CriticalSection
-                     , BSPM.Util.RunOnce
-
-                     , Data.Graph.Class
+  exposed-modules:     Data.Graph.Class
                      , Data.Graph.Interactive
                      , Data.Graph.Shumov
                      , Data.Graph.Unboxed
@@ -43,6 +32,7 @@ library
   build-depends:       base >= 4.7 && < 5
                        -- 0.8.4.0 is absolutely required due to following fix: https://github.com/kolmodin/binary/commit/7532daa8789e5199109bb1fcde367d71effb07e2
                      , binary >= 0.8.4.0
+                     , bsp
                      , bytestring
                      , hashable
                      , hashtables
@@ -57,13 +47,13 @@ library
   default-language:    Haskell2010
   ghc-options:       -Wall -O2
 
-executable bspm
+executable graphomania
   hs-source-dirs:      app
   main-is:             Main.hs
   ghc-options:         -Wall -O2 -threaded -rtsopts
   build-depends:       base
-                     , BSPM
                      , containers
+                     , graphomania
                      , keys
                      , primitive
                      , timeit
@@ -73,14 +63,14 @@ executable bspm
                      , vector
                      , vector-algorithms
   default-language:    Haskell2010
-  Other-Modules:       Paths_BSPM
+  Other-Modules:       Paths_graphomania
 
-test-suite bspm-test
+test-suite graphomania-test
   type:                exitcode-stdio-1.0
   hs-source-dirs:      test
   main-is:             Spec.hs
   build-depends:       base
-                     , BSPM
+                     , graphomania
                      , HUnit
                      , keys
                      , QuickCheck
@@ -91,19 +81,19 @@ test-suite bspm-test
   ghc-options:         -Wall -threaded -rtsopts  -main-is Spec.main
   default-language:    Haskell2010
 
-benchmark bspm-bench
+benchmark graphomania-bench
   type:                exitcode-stdio-1.0
   main-is:             Bench.hs
   ghc-options:         -Wall -threaded -funbox-strict-fields -with-rtsopts=-N -main-is Bench.main
   hs-source-dirs:      bench
   build-depends:       base   >= 4.8 && < 5
-                     , BSPM
+                     , graphomania
                      , criterion
                      , hashtables
                      , stm
                      , transformers
   default-language:    Haskell2010
-  Other-Modules:       Paths_BSPM
+  Other-Modules:       Paths_graphomania
 
 source-repository head
   type:     git

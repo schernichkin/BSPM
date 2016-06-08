@@ -2,25 +2,24 @@
 
 module Bench where
 
+import           BSP.Util.CountDown
 import           BSPM.Engine.Local
-import           BSPM.Util.CountDown
 import           Control.Concurrent
 import           Control.Concurrent.STM.TVar
 import           Control.Monad
 import           Control.Monad.STM
 import           Criterion.Main
-import           Data.Graph.Unboxed.Reader.WikiVote
-import           Data.HashTable.Class               (HashTable)
-import           Data.HashTable.IO                  (IOHashTable)
-import qualified Data.HashTable.IO                  as H
-import qualified Data.HashTable.ST.Basic            as Basic
-import qualified Data.HashTable.ST.Cuckoo           as Cuckoo
+import           Data.HashTable.Class        (HashTable)
+import           Data.HashTable.IO           (IOHashTable)
+import qualified Data.HashTable.IO           as H
+import qualified Data.HashTable.ST.Basic     as Basic
+import qualified Data.HashTable.ST.Cuckoo    as Cuckoo
 import           Data.Proxy
 import           Data.Word
 import           Foreign.Marshal.Alloc
 import           Foreign.Ptr
 import           Foreign.Storable
-import           Paths_BSPM
+import           Paths_bsp
 import           System.IO
 
 forkBench :: Int -> IO ()
@@ -57,12 +56,6 @@ populateHashtable _ c = do
   table <- H.new :: IO (IOHashTable h Int Int)
   forM_  [1..c] $ \i -> H.insert table i i
 
-readWikiVote :: IO ()
-readWikiVote = do
-  graphPath <- getDataFileName "wiki-Vote.txt"
-  void $ withFile graphPath ReadMode readGraph
-  return ()
-
 readAlignedBench ::  Int -> IO ()
 readAlignedBench c = allocaBytes (c * 8) $ \ptr ->
   forM_ [0, 8 .. c-1] $ \off -> peek (ptr `plusPtr` off :: Ptr Word64)
@@ -94,8 +87,5 @@ main = defaultMain
     ]
   , bgroup "BSPM.Engine.Local"
     [  bench "send 10 000" $ nfIO $ sendBench 10000
-    ]
-  , bgroup "Data.Graph.Unboxed.Reader.WikiVote"
-    [ bench "readGraph" $ nfIO readWikiVote
     ]
   ]
