@@ -1,3 +1,6 @@
+{-# LANGUAGE BangPatterns        #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+
 module Main where
 
 import           BSP
@@ -5,17 +8,21 @@ import           Control.Concurrent.MVar
 import           Control.Monad
 import           Control.Monad.Fix
 import           Control.Monad.IO.Class
-import           Data.Graph.Unboxed
-import           Data.Graph.Unboxed.Builder
-import           Data.Graph.Unboxed.Internal
-import           Data.Graph.Unboxed.Reader.WikiVote
-import qualified Data.HashTable.IO                  as H
+import           Control.Monad.Primitive
+import           Data.Graph.Interactive
+import           Data.Graph.Shumov
+import qualified Data.HashTable.IO           as H
 import           Data.Key
-import           Data.Map.Strict                    as Map
+import           Data.Map.Strict             as Map
 import           Data.Shards.Ordered
+import qualified Data.Vector                 as V
+import           Data.Vector.Algorithms.Heap as VA
+import qualified Data.Vector.Mutable         as MV
 import           Data.Void
 import           Paths_BSPM
 import           System.IO
+import           System.TimeIt
+
 {-
 newGraph :: IO (OrderedShardMap Int (UGraph Int (Int, Double)))
 newGraph = buildSharded 4 $ do
@@ -63,8 +70,30 @@ main = do
   -}
 -}
 
-data Worker i o = forall Worker 
-
 main :: IO ()
 main = do
-  return ()
+  let a = V.create $ do
+            v <- MV.new 6
+            MV.write v 0 40
+            MV.write v 1 3
+            MV.write v 2 20
+            MV.write v 3 1
+            MV.write v 4 30
+            MV.write v 5 14
+            VA.heapify compare v 0 6
+            VA.pop compare v 0 5
+          --  VA.pop compare v 0 4
+          --  VA.pop compare v 0 3
+            VA.heapInsert  compare v 0 5 3
+            --VA.sortHeap compare v 0 0 3
+            return v
+
+  --  MV.new 10 :: IO (MV.MVector (PrimState IO)  Int)
+  (!a) :: V.Vector ShumovVertex <- timeIt $ do
+      g <- readShumov "data/shumov/graph.bin"
+      osample 100 g
+  print a
+  (!b) <- timeIt $ do
+      g <- readShumov "data/shumov/graph.bin"
+      return $ olength g
+  print b

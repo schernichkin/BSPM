@@ -1,5 +1,5 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE TypeFamilies          #-}
 
 module BSPM.Engine.Local
     ( BSPM ()
@@ -18,7 +18,7 @@ import           Control.Monad
 import           Control.Monad.IO.Class
 import           Control.Monad.STM
 import           Data.Hashable
-import qualified Data.HashTable.IO as H
+import qualified Data.HashTable.IO            as H
 import           Data.IORef
 
 type HashTable k v = H.BasicHashTable k v
@@ -45,7 +45,7 @@ data MessageWrapper a = DataMessage a
                       deriving ( Show, Eq )
 
 data WorkerState a k = WorkerState
-  { _chan :: !(TChan (MessageWrapper a))
+  { _chan        :: !(TChan (MessageWrapper a))
   , _currentStep :: !(StepState a k)
   }
 
@@ -99,7 +99,7 @@ getWorkerChan step k = modifyCriticalSection (_nextChans step) $ \nextChans -> d
       chan <- newTChanIO
       mask_ $ do
         atomicModifyIORef' (_activeWorkers nextStep) $ \a -> (a + 1, ())
-        forkIOWithUnmask $ \unmask -> finally
+        void $ forkIOWithUnmask $ \unmask -> finally
           ( unmask $ do
             unBSPM
               (_workerFactory nextStep k)

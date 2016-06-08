@@ -7,14 +7,12 @@ module Data.Vector.Utils
   ) where
 
 import           Data.Bits
-import           Data.Key
 import Data.Vector.Generic (Vector)
 import qualified Data.Vector.Generic as G
 import Data.Function
 
 {-# INLINE binarySearchByKey #-}
 binarySearchByKey :: ( Vector v (e k a)
-                     , Key (e k) ~ k
                      , Ord k )
                      => (e k a -> k)
                      -> v (e k a)

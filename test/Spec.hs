@@ -1,9 +1,14 @@
+{-# LANGUAGE ScopedTypeVariables #-}
+
 module Spec where
 
+import           Data.Graph.Interactive
 import           Data.Key
+import           Data.List
 import           Data.Shards.Ordered.Internal
 import qualified Data.Vector                          as V
 import           Data.Vector.Utils
+import           Debug.Trace
 import           Test.Framework
 import           Test.Framework.Providers.HUnit
 import           Test.Framework.Providers.QuickCheck2
@@ -26,6 +31,12 @@ vectorUtilsTest = testGroup "Data.Vector.Utils"
         let result = salami 3 $ V.fromList [1, 2, 3, 4, 5, 6, 7] :: [V.Vector Int]
         in result @?= [V.fromList [1, 2], V.fromList [3, 4], V.fromList [5, 6, 7]]
     ]
+  ]
+
+interactiveUtilsTest :: Test
+interactiveUtilsTest = testGroup "Data.Graph.Interactive"
+  [ testProperty "otop" $ \(v :: [Int]) (NonNegative n) ->
+     (otop n v) == (V.fromList $ take n $ sort v)
   ]
 
 shardsTest :: Test
@@ -55,5 +66,6 @@ shardsTest = testGroup "Shards"
 main :: IO ()
 main = defaultMain
   [ vectorUtilsTest
+  , interactiveUtilsTest
   , shardsTest
   ]

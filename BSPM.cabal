@@ -30,6 +30,8 @@ library
                      , BSPM.Util.RunOnce
 
                      , Data.Graph.Class
+                     , Data.Graph.Interactive
+                     , Data.Graph.Shumov
                      , Data.Graph.Unboxed
                      , Data.Graph.Unboxed.Builder
                      , Data.Graph.Unboxed.Internal
@@ -39,34 +41,41 @@ library
                      , Data.Shards.Ordered.Internal
                      , Data.Vector.Utils
   build-depends:       base >= 4.7 && < 5
+                       -- 0.8.4.0 is absolutely required due to following fix: https://github.com/kolmodin/binary/commit/7532daa8789e5199109bb1fcde367d71effb07e2
+                     , binary >= 0.8.4.0
                      , bytestring
                      , hashable
                      , hashtables
                      , keys
                      , mono-traversable
+                     , mwc-random
                      , primitive
                      , stm
                      , transformers
                      , vector
                      , vector-algorithms
   default-language:    Haskell2010
-  ghc-options:       -Wall
+  ghc-options:       -Wall -O2
 
 executable bspm
   hs-source-dirs:      app
   main-is:             Main.hs
-  ghc-options:         -Wall -threaded -rtsopts -with-rtsopts=-N
+  ghc-options:         -Wall -O2 -threaded -rtsopts
   build-depends:       base
                      , BSPM
                      , containers
                      , keys
+                     , primitive
+                     , timeit
                      , transformers
                      , hashable
                      , hashtables
+                     , vector
+                     , vector-algorithms
   default-language:    Haskell2010
   Other-Modules:       Paths_BSPM
 
-test-suite BSPM-test
+test-suite bspm-test
   type:                exitcode-stdio-1.0
   hs-source-dirs:      test
   main-is:             Spec.hs
@@ -79,10 +88,10 @@ test-suite BSPM-test
                      , test-framework-hunit
                      , test-framework-quickcheck2
                      , vector
-  ghc-options:         -Wall -threaded -rtsopts -with-rtsopts=-N -main-is Spec.main
+  ghc-options:         -Wall -threaded -rtsopts  -main-is Spec.main
   default-language:    Haskell2010
 
-benchmark BSPM-bench
+benchmark bspm-bench
   type:                exitcode-stdio-1.0
   main-is:             Bench.hs
   ghc-options:         -Wall -threaded -funbox-strict-fields -with-rtsopts=-N -main-is Bench.main

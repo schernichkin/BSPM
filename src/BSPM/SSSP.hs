@@ -1,8 +1,9 @@
-{-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE TypeFamilies     #-}
 
 module BSPM.SSSP where
 
+{-
 import qualified Data.HashTable.IO as H
 import Data.HashTable.IO ( BasicHashTable )
 import Control.Concurrent.STM.TMVar
@@ -106,3 +107,4 @@ runOnGraph graph maxWeight from to = do
   worker <- newVertextWorker graph maxWeight to
   run worker $ do
     send from $ PathToYou from 0
+-}

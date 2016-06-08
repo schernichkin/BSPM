@@ -47,8 +47,8 @@ getRunOnce (RunOnce once) = bracketOnError acquire release $ \eitherVal ->
         Right val -> writeTVar once $ Initialized val
 
 initialized :: RunOnce a -> IO Bool
-initialized (RunOnce once) = do
-  token <- atomically $ readTVar once
+initialized once = do
+  token <- atomically $ readTVar $ unRunOnce once
   return $ case token of
     Initialized _ -> True
     _ -> False
