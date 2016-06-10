@@ -12,7 +12,7 @@ module Data.Graph.Interactive
   , otopBy
   , osample
   , module  X
-  ) where
+  ) where 
 
 import           Data.Graph.Shumov    (Shumov, ShumovVertex)
 import qualified Data.Graph.Shumov    as SH

@@ -9,11 +9,12 @@ module Data.Graph.Shumov
     ) where
 
 import           Data.Binary.Get
-import           Data.ByteString      (ByteString)
-import qualified Data.ByteString      as BS
+import           Data.ByteString          (ByteString)
+import qualified Data.ByteString          as BS
 import           Data.Graph.Class
 import           Data.MonoTraversable
-import           Prelude              hiding (readFile)
+import           Graphomania.Utils.Binary
+import           Prelude                  hiding (readFile)
 
 newtype Shumov = Shumov { unShumov :: ByteString }
 
@@ -68,15 +69,6 @@ getVertex = do
 
 readFile :: FilePath -> IO Shumov
 readFile = fmap Shumov . BS.readFile
-
-{-# INLINE runGetStrict #-}
-runGetStrict :: Get a -> ByteString -> (a, ByteString)
-runGetStrict g = feed (runGetIncremental g) . Just
-  where
-    feed (Done r _ x) _ = (x, r)
-    feed (Partial k) s = feed (k s) Nothing
-    feed (Fail _ pos msg) _ = error $ "Data.Graph.Shumov.runGetStrict at position "
-                                   ++ show pos ++ ": " ++ msg
 
 uncons :: Shumov -> Maybe (ShumovVertex, Shumov)
 uncons (Shumov s) =

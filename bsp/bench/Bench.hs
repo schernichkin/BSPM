@@ -70,8 +70,8 @@ main = defaultMain
     [ bgroup "memory"
       [ bench "read aligned 8M" $ nfIO $ readAlignedBench 1000000
       , bench "read unaligned 8M" $ nfIO $ readUnalignedBench 1000000
-      , bench "read aligned 80M" $ nfIO $ readAlignedBench 10000000
-      , bench "read unaligned 80M" $ nfIO $ readUnalignedBench 10000000
+      -- , bench "read aligned 80M" $ nfIO $ readAlignedBench 10000000
+      -- , bench "read unaligned 80M" $ nfIO $ readUnalignedBench 10000000
       ]
     , bgroup "forkIO"
       [ bench "fork and wait 10 000" $ nfIO $ forkBench 10000
@@ -86,6 +86,6 @@ main = defaultMain
       ]
     ]
   , bgroup "BSPM.Engine.Local"
-    [  bench "send 10 000" $ nfIO $ sendBench 10000
+    [  -- bench "send 10 000" $ nfIO $ sendBench 10000
     ]
   ]
