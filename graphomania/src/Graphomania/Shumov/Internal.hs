@@ -1,5 +1,6 @@
 {-# LANGUAGE BangPatterns         #-}
 {-# LANGUAGE DataKinds            #-}
+{-# LANGUAGE DeriveGeneric        #-}
 {-# LANGUAGE FlexibleContexts     #-}
 {-# LANGUAGE FlexibleInstances    #-}
 {-# LANGUAGE PolyKinds            #-}
@@ -17,6 +18,7 @@ module Graphomania.Shumov.Internal
     , unsafeConvertShumov
     ) where
 
+import           Control.DeepSeq
 import           Control.Monad
 import           Data.Binary
 import           Data.Binary.Get
@@ -27,6 +29,7 @@ import           Data.Int
 import           Data.MonoTraversable
 import           Data.Proxy
 import           Data.Tagged
+import           GHC.Generics             (Generic)
 import           Graphomania.Utils.Binary
 import           System.Endian
 
@@ -86,7 +89,9 @@ instance (EndiannessAware e) => Binary (ShumovVertexBinary e) where
     put (Tagged _vertexHeader :: Tagged e ShumovVertexHeader)
     putByteString _edges
 
-newtype ShumovBinary e = ShumovBinary { unShumov :: ByteString }
+newtype ShumovBinary e = ShumovBinary { unShumov :: ByteString } deriving (Generic)
+
+instance NFData (ShumovBinary e)
 
 type instance Element (ShumovBinary e) = ShumovVertexBinary e
 

@@ -20,6 +20,7 @@ import           Foreign.Marshal.Alloc
 import           Foreign.Ptr
 import           Foreign.Storable
 import           Graphomania.Shumov
+import qualified Graphomania.Shumov.Offheap         as Off
 import           Paths_graphomania
 import           System.IO
 
@@ -46,6 +47,22 @@ readShumovLETest = do
   g <- readShumovLE path
   return $ olength g
 
+shomovBench :: Benchmark
+shomovBench = env setupEnv $ \ ~(gBe, gLe, gOff) ->
+  bgroup "Shumov"
+    [ bench "BE" $ nf olength gBe
+    , bench "LE" $ nf olength gLe
+    , bench "Off" $ nf olength gOff
+    ]
+  where
+    setupEnv = do
+      pathBe <- getDataFileName "shumov/graph.bin"
+      gBe <- readShumovBE pathBe
+      pathLe <- getDataFileName "shumov/graph_le.bin"
+      gLe <- readShumovLE pathLe
+      gOff <- Off.readShumov pathLe
+      return (gBe, gLe, gOff)
+
 main :: IO ()
 main = defaultMain
   [ bgroup "Baseline"
@@ -57,8 +74,5 @@ main = defaultMain
   , bgroup "Data.Graph.Unboxed.Reader.WikiVote"
     [ bench "readGraph" $ nfIO readWikiVote
     ]
-  , bgroup "Shumov"
-    [ bench "BE" $ nfIO readShumovBETest
-    , bench "LE" $ nfIO readShumovLETest
-    ]
+  , shomovBench
   ]

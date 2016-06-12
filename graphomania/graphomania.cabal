@@ -35,6 +35,7 @@ library
                      , Graphomania.Main
                      , Graphomania.Shumov
                      , Graphomania.Shumov.Internal
+                     , Graphomania.Shumov.Offheap
                      , Graphomania.Utils.Binary
                      , Graphomania.Utils.ByteString
   build-depends:       base >= 4.7 && < 5
@@ -43,11 +44,13 @@ library
                      , cpu
                      , bsp
                      , bytestring
+                     , deepseq
                      , hashable
                      , hashtables
                      , keys
                      , mono-traversable
                      , mwc-random
+                     , offheap
                      , optparse-applicative
                      , primitive
                      , stm

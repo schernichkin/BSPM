@@ -1,0 +1,38 @@
+name:                offheap
+version:             0.1.0.0
+synopsis:            Offheap memory structures
+description:         Please see README.md
+homepage:            https://github.com/schernichkin/graphomania#readme
+license:             BSD3
+license-file:        LICENSE
+author:              Stanislav Chernichkin
+maintainer:          schernichkin@gmail.com
+copyright:           Copyright (C) 2016 Stanislav Chernichkin
+category:            Data
+build-type:          Simple
+-- extra-source-files:
+cabal-version:       >=1.10
+
+library
+  hs-source-dirs:      src
+  exposed-modules:     Offheap
+                     , Offheap.Get
+  build-depends:       base >= 4.7 && < 5
+                     , bytestring
+                     , primitive
+  default-language:    Haskell2010
+  ghc-options:         -Wall -O2
+
+benchmark offheap-bench
+  type:                exitcode-stdio-1.0
+  main-is:             Bench.hs
+  hs-source-dirs:      bench
+  build-depends:       base   >= 4.8 && < 5
+                     , criterion
+                     , offheap
+  default-language:    Haskell2010
+  ghc-options:         -Wall -O2 -threaded -funbox-strict-fields -with-rtsopts=-N -main-is Bench.main
+
+source-repository head
+  type:     git
+  location: https://github.com/schernichkin/BSPM
