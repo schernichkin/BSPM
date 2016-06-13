@@ -36,6 +36,7 @@ library
                      , Graphomania.Shumov
                      , Graphomania.Shumov.Internal
                      , Graphomania.Shumov.Offheap
+                     , Graphomania.Shumov.OffheapI
                      , Graphomania.Utils.Binary
                      , Graphomania.Utils.ByteString
   build-depends:       base >= 4.7 && < 5
@@ -48,6 +49,7 @@ library
                      , hashable
                      , hashtables
                      , keys
+                     , lens
                      , mono-traversable
                      , mwc-random
                      , offheap
@@ -104,6 +106,7 @@ benchmark graphomania-bench
                      , graphomania
                      , criterion
                      , hashtables
+                     , lens
                      , mono-traversable
                      , stm
                      , transformers

@@ -4,6 +4,8 @@ module Bench where
 
 import           Control.Concurrent
 import           Control.Concurrent.STM.TVar
+import           Control.Lens
+import           Control.Lens.Fold
 import           Control.Monad
 import           Control.Monad.STM
 import           Criterion.Main
@@ -21,6 +23,7 @@ import           Foreign.Ptr
 import           Foreign.Storable
 import           Graphomania.Shumov
 import qualified Graphomania.Shumov.Offheap         as Off
+import qualified Graphomania.Shumov.OffheapI        as OffI
 import           Paths_graphomania
 import           System.IO
 
@@ -48,11 +51,13 @@ readShumovLETest = do
   return $ olength g
 
 shomovBench :: Benchmark
-shomovBench = env setupEnv $ \ ~(gBe, gLe, gOff) ->
+shomovBench = env setupEnv $ \ ~(gBe, gLe, gOff, gOffI) ->
   bgroup "Shumov"
     [ bench "BE" $ nf olength gBe
     , bench "LE" $ nf olength gLe
     , bench "Off" $ nf olength gOff
+    , bench "lengthOf" $ nf (lengthOf Off.offheapVertices) gOff
+    , bench "lengthOfI" $ nf (lengthOf OffI.offheapVertices) gOffI
     ]
   where
     setupEnv = do
@@ -61,7 +66,8 @@ shomovBench = env setupEnv $ \ ~(gBe, gLe, gOff) ->
       pathLe <- getDataFileName "shumov/graph_le.bin"
       gLe <- readShumovLE pathLe
       gOff <- Off.readShumov pathLe
-      return (gBe, gLe, gOff)
+      gOffI <- OffI.readShumov pathLe
+      return (gBe, gLe, gOff, gOffI)
 
 main :: IO ()
 main = defaultMain
