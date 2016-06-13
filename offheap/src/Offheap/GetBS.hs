@@ -50,25 +50,21 @@ newtype GetBS a = GetBS
   }
 
 instance Functor GetBS where
-  {-# INLINEABLE fmap #-}
   fmap f g = GetBS $ \base addr remains ->
     let (# a, addr', remains' #) = unGetBS g base addr remains
      in (# f a, addr', remains' #)
 
 instance Applicative GetBS where
-  {-# INLINEABLE pure #-}
   pure a = GetBS $ \_ addr remains -> (# a, addr, remains #)
 
-  {-# INLINEABLE (<*>) #-}
   f1 <*> f2 = GetBS $ \base addr remains ->
-    let (# f, addr', remains' #)  = unGetBS f1 base addr remains
+    let (# f, addr', remains' #) = unGetBS f1 base addr remains
         (# a, addr'', remains'' #) = unGetBS f2 base addr' remains'
      in (# f a, addr'', remains'' #)
 
 instance Monad GetBS where
-  {-# INLINEABLE (>>=) #-}
   m >>= k = GetBS $ \base addr remains ->
-    let (# a, addr', remains' #)  = unGetBS m base addr remains
+    let (# a, addr', remains' #) = unGetBS m base addr remains
      in unGetBS (k a) base addr' remains'
 
 -- TODO: эту функцию можно переделать так, чтобы она либо возвращала
