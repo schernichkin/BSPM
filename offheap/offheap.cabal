@@ -18,6 +18,7 @@ library
   exposed-modules:     Offheap
                      , Offheap.Get
                      , Offheap.GetBS
+                     , Offheap.GetBSS
                      , Offheap.GetI
   build-depends:       base >= 4.7 && < 5
                      , bytestring

@@ -20,8 +20,9 @@ import           Data.ByteString.Internal
 import           Data.Int
 import           Data.Primitive
 import           Foreign.ForeignPtr
-import           GHC.Base
+import           GHC.Prim
 import           GHC.Ptr
+import           GHC.Types
 
 {- 4.51 -}
 newtype GetI a  = GetI { unGetI :: Addr# -> (# a, Addr# #) }

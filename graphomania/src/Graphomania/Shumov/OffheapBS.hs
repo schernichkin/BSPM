@@ -28,17 +28,18 @@ newtype ShumovOffheap = ShumovOffheap { unShumov :: ByteString } deriving (Gener
 instance NFData ShumovOffheap
 
 data ShumovVertexOffheap = ShumovVertexOffheap
-  { _idSize    :: !Int16
+  { _vertexId  :: !ByteString
   , _edgeCount :: !Int32
+  , _edges     :: !ByteString
   }  deriving ( Show, Eq, Ord )
 
 getShumovVertexOffheap :: GetBS ShumovVertexOffheap
 getShumovVertexOffheap = do
   idSize     <- getInt16Host
-  skip (fromIntegral idSize)
+  vertexId   <- getByteString (fromIntegral idSize)
   edgeCount  <- getInt32Host
-  skip (fromIntegral (edgeCount * 10))
-  return $ ShumovVertexOffheap idSize edgeCount
+  edges      <- getByteString (fromIntegral edgeCount * 10)
+  return $ ShumovVertexOffheap vertexId edgeCount edges
 
 readShumov :: FilePath -> IO ShumovOffheap
 readShumov = fmap ShumovOffheap . BS.readFile

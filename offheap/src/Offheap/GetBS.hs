@@ -11,6 +11,7 @@ module Offheap.GetBS (
   , getInt16Host
   , getInt32Host
   , getInt64Host
+  , getByteString
   , skip
   ) where
 
@@ -25,6 +26,7 @@ import           GHC.Types
 import           Data.Primitive
 import           Data.Int
 import           Control.Monad.Primitive
+import           Foreign.ForeignPtr.Unsafe
 
 moduleErrorMsg :: String -> String -> String
 moduleErrorMsg fun msg = "Offheap.GetBS." ++ fun ++ ':':' ':msg
@@ -103,6 +105,16 @@ getInt32Host = getPrim
 {-# INLINE getInt64Host #-}
 getInt64Host :: GetBS Int64
 getInt64Host = getPrim
+
+{-# INLINE getByteString #-}
+getByteString :: Int -> GetBS ByteString
+getByteString len@(I# i) = GetBS $ \base addr remains ->
+  let !(Ptr baseAddr) = (unsafeForeignPtrToPtr base)
+  in  checkBufferLength i remains
+        (# fromForeignPtr base (I# (minusAddr# addr baseAddr)) len
+        , plusAddr# addr i
+        , remains -# i
+        #)
 
 {-# INLINE skip #-}
 skip :: Int -> GetBS ()
