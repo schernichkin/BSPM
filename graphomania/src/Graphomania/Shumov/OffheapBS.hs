@@ -9,7 +9,7 @@
 {-# LANGUAGE TypeFamilies         #-}
 {-# LANGUAGE UndecidableInstances #-}
 
-module Graphomania.Shumov.OffheapI
+module Graphomania.Shumov.OffheapBS
   ( readShumov
   , offheapVertices
   ) where
@@ -21,7 +21,7 @@ import           Data.ByteString              (ByteString)
 import qualified Data.ByteString              as BS
 import           Data.Int
 import           GHC.Generics                 (Generic)
-import           Offheap.GetI
+import           Offheap.GetBS
 
 newtype ShumovOffheap = ShumovOffheap { unShumov :: ByteString } deriving (Generic)
 
@@ -32,7 +32,7 @@ data ShumovVertexOffheap = ShumovVertexOffheap
   , _edgeCount :: !Int32
   }  deriving ( Show, Eq, Ord )
 
-getShumovVertexOffheap :: GetI ShumovVertexOffheap
+getShumovVertexOffheap :: GetBS ShumovVertexOffheap
 getShumovVertexOffheap = do
   idSize     <- getInt16Host
   skip (fromIntegral idSize)

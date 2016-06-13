@@ -17,9 +17,11 @@ library
   hs-source-dirs:      src
   exposed-modules:     Offheap
                      , Offheap.Get
+                     , Offheap.GetBS
                      , Offheap.GetI
   build-depends:       base >= 4.7 && < 5
                      , bytestring
+                     , ghc-prim
                      , primitive
   default-language:    Haskell2010
   ghc-options:         -Wall -O2

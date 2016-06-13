@@ -2,7 +2,7 @@
 {-# LANGUAGE MagicHash    #-}
 
 module Offheap.Get
-  ( Get
+  ( Get (..)
   , getInt16Host
   , getInt32Host
   , getInt64Host
@@ -23,16 +23,8 @@ import           Foreign.ForeignPtr.Unsafe
 import           GHC.Base                  (Int (..))
 import           GHC.Ptr
 
--- TODO:
--- 1. Для того, чтобы эффективно получать bytestring-и
---    надо иметь исходный байтсринг.
---    Но да и хуй с ним, можно возвращать Addr
---    Правда на более высоком уровне потребуется из этого Addr
---    Как-то собрать байтсринг.
---    Это возможно, если исходный указатель был указателем на
---    байтсринг.
---    Возможно оптимальным решением является использование
---    смещения вместо адреса.
+-- TODO: Нужно либо удалить этот модуль, либо переработать его аналогично
+-- GetI, только использовать readOffAddr вместо indexOffAddr
 newtype Get s a = Get { unGet :: Addr -> s (a, Addr) }
 
 instance (Functor s) => Functor (Get s) where

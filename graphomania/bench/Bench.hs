@@ -2,12 +2,8 @@
 
 module Bench where
 
-import           Control.Concurrent
-import           Control.Concurrent.STM.TVar
 import           Control.Lens
-import           Control.Lens.Fold
 import           Control.Monad
-import           Control.Monad.STM
 import           Criterion.Main
 import           Data.Graph.Unboxed.Reader.WikiVote
 import           Data.HashTable.Class               (HashTable)
@@ -17,12 +13,9 @@ import qualified Data.HashTable.ST.Basic            as Basic
 import qualified Data.HashTable.ST.Cuckoo           as Cuckoo
 import           Data.MonoTraversable
 import           Data.Proxy
-import           Data.Word
-import           Foreign.Marshal.Alloc
-import           Foreign.Ptr
-import           Foreign.Storable
 import           Graphomania.Shumov
 import qualified Graphomania.Shumov.Offheap         as Off
+import qualified Graphomania.Shumov.OffheapBS       as OffBS
 import qualified Graphomania.Shumov.OffheapI        as OffI
 import           Paths_graphomania
 import           System.IO
@@ -51,13 +44,14 @@ readShumovLETest = do
   return $ olength g
 
 shomovBench :: Benchmark
-shomovBench = env setupEnv $ \ ~(gBe, gLe, gOff, gOffI) ->
+shomovBench = env setupEnv $ \ ~(gBe, gLe, gOff, gOffI, gOffBS) ->
   bgroup "Shumov"
     [ bench "BE" $ nf olength gBe
     , bench "LE" $ nf olength gLe
     , bench "Off" $ nf olength gOff
     , bench "lengthOf" $ nf (lengthOf Off.offheapVertices) gOff
     , bench "lengthOfI" $ nf (lengthOf OffI.offheapVertices) gOffI
+    , bench "lengthOfBS" $ nf (lengthOf OffBS.offheapVertices) gOffBS
     ]
   where
     setupEnv = do
@@ -67,7 +61,8 @@ shomovBench = env setupEnv $ \ ~(gBe, gLe, gOff, gOffI) ->
       gLe <- readShumovLE pathLe
       gOff <- Off.readShumov pathLe
       gOffI <- OffI.readShumov pathLe
-      return (gBe, gLe, gOff, gOffI)
+      gOffBS <- OffBS.readShumov pathLe
+      return (gBe, gLe, gOff, gOffI, gOffBS)
 
 main :: IO ()
 main = defaultMain

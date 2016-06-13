@@ -37,6 +37,7 @@ library
                      , Graphomania.Shumov.Internal
                      , Graphomania.Shumov.Offheap
                      , Graphomania.Shumov.OffheapI
+                     , Graphomania.Shumov.OffheapBS
                      , Graphomania.Utils.Binary
                      , Graphomania.Utils.ByteString
   build-depends:       base >= 4.7 && < 5
