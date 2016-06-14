@@ -4,21 +4,41 @@
 module Lev.Get
   ( Get
   , FixedGetter
+  , run
+  , get
   , prim
   , int16Host
   , int32Host
   , int64Host
-  , get
   ) where
 
 import           Control.Arrow
 import           Control.Category
+import           Control.Monad.Primitive
 import           Data.Int
 import           Data.Primitive
 import           Data.Profunctor
 import           Data.Word
 import           Foreign.ForeignPtr
-import           Prelude            hiding (id, (.))
+import           GHC.Ptr
+import           Lev.Buffer
+import           Prelude                 hiding (id, (.))
+
+moduleErrorMsg :: String -> String -> String
+moduleErrorMsg fun msg = "Lev.Get." ++ fun ++ ':':' ':msg
+
+{-# NOINLINE moduleError #-}
+moduleError :: String -> String -> a
+moduleError fun msg = error (moduleErrorMsg fun msg)
+
+{-# INLINE checkBufferLength #-}
+checkBufferLength :: Int -> Int -> a -> a
+checkBufferLength required remains r =
+  if required <= remains
+    then r
+    else moduleError "checkBufferLength"
+                   ( "Bytes remains = " ++ (show remains) ++
+                     ", bytes required = " ++ (show required) )
 
 data FixedGetter a b = FixedGetter
   { _fixedSize   :: !Int
@@ -31,7 +51,7 @@ data FixedGetter a b = FixedGetter
   --     plusAddr, сейчас она не вызывается. Но, учитывая, что мы работаем
   --     с ByteString, смещение у нас всегда будет в любом случае.
   --   - Использование указателей генерируюет let-биндинги (по крайней мере для
-  --     boxed типов), нужно понять, во что они компилируются. 
+  --     boxed типов), нужно понять, во что они компилируются.
   , _fixedGetter :: !(ForeignPtr Word8 -> a -> Addr -> b)
   }
 
@@ -91,3 +111,13 @@ instance Arrow Get where
 get :: FixedGetter a b -> Get a b
 get = GetFixed
 {-# INLINE CONLIKE get #-}
+
+run :: Get () b -> Buffer -> (b, Buffer)
+run (GetArr f) b = (f (), b)
+run (GetFixed FixedGetter {..}) (Buffer {..}) =
+    checkBufferLength _fixedSize _length
+  $ unsafeInlineIO
+  $ withForeignPtr _base $ \(Ptr addr) -> return
+    ( _fixedGetter _base () ((Addr addr) `plusAddr` _offset)
+    , Buffer _base (_offset + _fixedSize) (_length - _fixedSize)
+    )

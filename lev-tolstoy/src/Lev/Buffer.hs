@@ -1,7 +1,7 @@
 {-# LANGUAGE RecordWildCards #-}
 
 module Lev.Buffer
-    ( Buffer
+    ( Buffer (..)
     , fromForeignPtr
     , toForeignPtr
     ) where
