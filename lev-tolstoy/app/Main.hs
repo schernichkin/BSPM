@@ -1,4 +1,4 @@
-{-# LANGUAGE Arrows       #-}
+{-# LANGUAGE Arrows #-}
 
 module Main where
 

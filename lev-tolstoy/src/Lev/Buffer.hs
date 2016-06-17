@@ -7,6 +7,7 @@ module Lev.Buffer
     , newBuffer
     ) where
 
+import           Control.DeepSeq    (NFData (rnf))
 import           Data.Word
 import           Foreign.ForeignPtr
 import           GHC.ForeignPtr
@@ -16,6 +17,9 @@ data Buffer = Buffer
   , _offset :: !Int
   , _length :: !Int
   }
+
+instance NFData Buffer where
+  rnf (Buffer _ _ _) = ()
 
 fromForeignPtr :: ForeignPtr Word8 -> Int -> Int -> Buffer
 fromForeignPtr = Buffer
