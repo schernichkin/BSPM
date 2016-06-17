@@ -1,3 +1,5 @@
+{-# LANGUAGE DataKinds           #-}
+{-# LANGUAGE KindSignatures      #-}
 {-# LANGUAGE RecordWildCards     #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
@@ -10,6 +12,10 @@ module Lev.Get
   , int16Host
   , int32Host
   , int64Host
+  , primO
+  , int16HostO
+  , int32HostO
+  , int64HostO
   ) where
 
 import           Control.Arrow
@@ -18,11 +24,17 @@ import           Control.Monad.Primitive
 import           Data.Int
 import           Data.Primitive
 import           Data.Profunctor
+import           Data.Proxy
 import           Data.Word
 import           Foreign.ForeignPtr
+import           Foreign.ForeignPtr.Unsafe
 import           GHC.Ptr
+import           GHC.TypeLits
 import           Lev.Buffer
-import           Prelude                 hiding (id, (.))
+import           Prelude                   hiding (id, (.))
+
+testFn :: KnownNat a => Proxy (a :: Nat) -> Addr -> Integer
+testFn p _ = natVal p
 
 moduleErrorMsg :: String -> String -> String
 moduleErrorMsg fun msg = "Lev.Get." ++ fun ++ ':':' ':msg
@@ -52,15 +64,38 @@ data FixedGetter a b = FixedGetter
   --     с ByteString, смещение у нас всегда будет в любом случае.
   --   - Использование указателей генерируюет let-биндинги (по крайней мере для
   --     boxed типов), нужно понять, во что они компилируются.
-  , _fixedGetter :: !(ForeignPtr Word8 -> a -> Addr -> b)
+  , _fixedGetter :: !(ForeignPtr Word8 -> a -> Int -> b)
   }
 
 prim :: forall a b . (Prim b) => FixedGetter a b
 prim = FixedGetter
   { _fixedSize = sizeOf (undefined :: b)
-  , _fixedGetter = const . const $ flip indexOffAddr 0
+  , _fixedGetter = \fptr _ off -> case unsafeForeignPtrToPtr fptr of
+                                    (Ptr addr) -> indexOffAddr ((Addr addr) `plusAddr` off) 0
+                          -- const . const $ flip indexOffAddr 0
   }
 {-# INLINE prim #-}
+
+primO :: forall a b . (Prim b) => Int -> FixedGetter a b
+primO off = FixedGetter
+  { _fixedSize = sizeOf (undefined :: b)
+  , _fixedGetter = \fptr _ _ -> case unsafeForeignPtrToPtr fptr of
+                                  (Ptr addr) -> indexOffAddr ((Addr addr) `plusAddr` off) 0
+                          -- const . const $ flip indexOffAddr 0
+  }
+{-# INLINE primO #-}
+
+int16HostO :: Int -> FixedGetter a Int16
+int16HostO = primO
+{-# INLINE int16HostO #-}
+
+int32HostO :: Int -> FixedGetter a Int32
+int32HostO = primO
+{-# INLINE int32HostO #-}
+
+int64HostO :: Int -> FixedGetter a Int64
+int64HostO = primO
+{-# INLINE int64HostO #-}
 
 int16Host :: FixedGetter a Int16
 int16Host = prim
@@ -94,10 +129,9 @@ instance Category Get where
 
   (GetFixed fix1) . (GetFixed fix2) = GetFixed $ FixedGetter
     { _fixedSize   = _fixedSize fix1 + _fixedSize fix2
-    , _fixedGetter = \base a addr ->
-      -- это работает неправильно. адрес надо передавать через стрелку.
-      let b = _fixedGetter fix2 base a addr
-      in _fixedGetter fix1 base b (addr `plusAddr` _fixedSize fix2)
+    , _fixedGetter = \base a off ->
+      let b = _fixedGetter fix2 base a off
+      in _fixedGetter fix1 base b (off + _fixedSize fix2)
     }
 
 instance Arrow Get where
@@ -118,6 +152,7 @@ run (GetFixed FixedGetter {..}) (Buffer {..}) =
     checkBufferLength _fixedSize _length
   $ unsafeInlineIO
   $ withForeignPtr _base $ \(Ptr addr) -> return
-    ( _fixedGetter _base () ((Addr addr) `plusAddr` _offset)
+    ( _fixedGetter _base () _offset
     , Buffer _base (_offset + _fixedSize) (_length - _fixedSize)
     )
+{-# INLINE run #-}
