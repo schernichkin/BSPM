@@ -1,5 +1,6 @@
 {-# LANGUAGE Arrows              #-}
 {-# LANGUAGE BangPatterns        #-}
+{-# LANGUAGE DataKinds           #-}
 {-# LANGUAGE DeriveGeneric       #-}
 {-# LANGUAGE MagicHash           #-}
 {-# LANGUAGE RecordWildCards     #-}
@@ -9,6 +10,7 @@
 module Bench where
 
 import           Control.Arrow
+import           Control.Monad.Indexed
 import           Control.Monad.Primitive
 import           Criterion.Main
 import           Data.Int
@@ -19,6 +21,8 @@ import           GHC.Prim
 import           GHC.Ptr
 import qualified Lev.Buffer              as L
 import qualified Lev.Get                 as L
+import qualified Lev.GetI                as LI
+
 
 {-# INLINE get100BHWO #-}
 get100BHWO :: L.Buffer -> ( Int64, L.Buffer )
@@ -135,6 +139,34 @@ read1GLO = go (10000000 :: Int) 0
     go 0 a _ = a
     go n a b = let (a', b') = L.run get100BLO b in go (n - 1) (a + a') b'
 
+{-# INLINE get100BLI #-}
+get100BLI :: LI.FixedGetter 0 100 ( Int64 )
+get100BLI =
+  LI.int64Host >>>= \a1 ->
+  LI.int64Host >>>= \a2 ->
+  LI.int64Host >>>= \a3 ->
+  LI.int64Host >>>= \a4 ->
+  LI.int64Host >>>= \a5 ->
+  LI.int64Host >>>= \a6 ->
+  LI.int64Host >>>= \a7 ->
+  LI.int64Host >>>= \a8 ->
+  LI.int64Host >>>= \a9 ->
+  LI.int64Host >>>= \a10 ->
+  LI.int64Host >>>= \a11 ->
+  LI.int64Host >>>= \a12 ->
+  LI.int32Host >>>= \a13 ->
+  ireturn $   a1 + a2 + a3 + a4
+            + a5 + a6 + a7 + a8
+            + a9 + a10 + a11 + a12
+            + fromIntegral a13
+
+read1GLI :: L.Buffer -> Int64
+read1GLI = go (10000000 :: Int) 0
+  where
+    go 0 a _ = a
+    go n a b = let (a', b') = LI.runFixedBuffer get100BLI b in go (n - 1) (a + a') b'
+
+
 
 read1GBench :: Benchmark
 read1GBench = env setupEnv $ \ ~(buffer) ->
@@ -143,6 +175,7 @@ read1GBench = env setupEnv $ \ ~(buffer) ->
   , bench "Handwritten with offsets" $ nf read1GHWO buffer
   , bench "Lev" $ nf read1GL buffer
   , bench "Levfo" $ nf read1GLO buffer
+  , bench "Levfi" $ nf read1GLI buffer
   ]
   where
     setupEnv = L.newBuffer 1000000000

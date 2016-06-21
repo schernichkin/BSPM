@@ -33,8 +33,10 @@ executable lev-tolstoy
   main-is:             Main.hs
   ghc-options:         -Wall -O2 -threaded -funbox-strict-fields -with-rtsopts=-N
   build-depends:       base
+                     , ghc-prim
                      , indexed
                      , lev-tolstoy
+                     , primitive
   default-language:    Haskell2010
 
 test-suite lev-tolstoy-test
@@ -57,6 +59,7 @@ benchmark lev-tolstoy-bench
   hs-source-dirs:      bench
   build-depends:       base
                      , criterion
+                     , indexed
                      , lev-tolstoy
                      , ghc-prim
                      , primitive

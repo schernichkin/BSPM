@@ -1,13 +1,18 @@
-{-# LANGUAGE Arrows        #-}
-{-# LANGUAGE DataKinds     #-}
-{-# LANGUAGE TypeOperators #-}
-{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE Arrows                #-}
+{-# LANGUAGE DataKinds             #-}
+{-# LANGUAGE FlexibleContexts      #-}
+{-# LANGUAGE MagicHash             #-}
+{-# LANGUAGE PartialTypeSignatures #-}
+{-# LANGUAGE TypeFamilies          #-}
+{-# LANGUAGE TypeOperators         #-}
 
 module Main where
 
 import           Control.Arrow
 import           Control.Monad.Indexed
 import           Data.Int
+import           Data.Primitive.Addr
+import           GHC.Prim
 import           GHC.TypeLits
 import           Lev.Get
 import qualified Lev.GetI              as GI
@@ -34,11 +39,15 @@ test_c = proc _ -> do
   d <- (get $ int32HostO 12) -< ()
   returnA -< (a, b, c, d)
 
-test_d :: (KnownNat i, KnownNat (i + 4)) => GI.FixedGetter i ((i + 4) + 4) (Int32, Int32)
+test_d :: _ => GI.FixedGetter i j (Int32, Int32, Int32, Int32)
 test_d =
   GI.int32Host >>>= \a ->
   GI.int32Host >>>= \b ->
-  ireturn (a, b)
+  GI.int32Host >>>= \c ->
+  GI.int32Host >>>= \d ->
+  ireturn (a, b, c, d)
+
+test_f = GI.runFixed test_d (Addr nullAddr#)
 
 --test_d :: GI.FixedGetter i (i + 16) (Int32, Int32, Int32, Int32)
 --test_d = do
