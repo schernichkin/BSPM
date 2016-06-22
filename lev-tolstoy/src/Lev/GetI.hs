@@ -18,13 +18,13 @@ module Lev.GetI
 import           Control.Monad
 import           Control.Monad.Indexed
 import           Control.Monad.Primitive
+import           Data.ByteString.Internal
 import           Data.Int
 import           Data.Primitive
 import           Data.Proxy
 import           Foreign.ForeignPtr
 import           GHC.Ptr
 import           GHC.TypeLits
-import           Lev.Buffer
 
 newtype FixedGetter (i :: Nat) (o :: Nat) a = FixedGetter { unFixedGetter :: Addr -> a }
 
@@ -46,8 +46,8 @@ type instance SizeOf Int32 = 4
 type instance SizeOf Int64 = 8
 
 data Getter a = GetterDone    !Int !a
-                -- ^ bytes read total and result
-              | GetterPartial !Int !(Buffer -> Getter a)
+                -- ^ bytes read total and the result
+              | GetterPartial !Int !(Addr -> Getter a)
                 -- ^ minimal buffer size and next step
 
 instance Functor Getter where
@@ -90,14 +90,15 @@ checkBufferLength required remains r =
 {-# INLINE checkBufferLength #-}
 
 runFixedBuffer :: forall n a . ( KnownNat n )
-               => FixedGetter 0 n a -> Buffer -> (a, Buffer)
-runFixedBuffer g Buffer {..} =
-    checkBufferLength getterLength _length
+               => FixedGetter 0 n a -> ByteString -> (a, ByteString)
+runFixedBuffer g b =
+    checkBufferLength getterLength bufferLength
   $ unsafeInlineIO
-  $ withForeignPtr _base $ \(Ptr addr) -> return
+  $ withForeignPtr base $ \(Ptr addr) -> return
     ( unFixedGetter g (Addr addr)
-    , Buffer _base (_offset + getterLength) (_length - getterLength)
+    , fromForeignPtr base (offset + getterLength) (bufferLength - getterLength)
     )
   where
+    (base, offset, bufferLength) = toForeignPtr b
     getterLength = fromIntegral $ natVal (Proxy :: Proxy n)
 {-# INLINE runFixedBuffer #-}

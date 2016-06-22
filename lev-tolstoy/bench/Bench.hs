@@ -13,21 +13,22 @@ import           Control.Arrow
 import           Control.Monad.Indexed
 import           Control.Monad.Primitive
 import           Criterion.Main
+import           Data.ByteString          as BS
+import           Data.ByteString.Internal
 import           Data.Int
 import           Foreign.ForeignPtr
 import           GHC.Int
-import           GHC.IO                  (IO (..))
+import           GHC.IO                   (IO (..))
 import           GHC.Prim
 import           GHC.Ptr
-import qualified Lev.Buffer              as L
-import qualified Lev.Get                 as L
-import qualified Lev.GetI                as LI
+import qualified Lev.Get                  as L
+import qualified Lev.GetI                 as LI
 
 
 {-# INLINE get100BHWO #-}
-get100BHWO :: L.Buffer -> ( Int64, L.Buffer )
-get100BHWO buffer = case buffer of
-  L.Buffer (fbase) (I# off) (I# len) ->
+get100BHWO :: ByteString -> ( Int64, ByteString )
+get100BHWO buffer = case toForeignPtr buffer of
+  (fbase, I# off, I# len) ->
     unsafeInlineIO $ withForeignPtr fbase $ \(Ptr base) -> do
       let !addr = plusAddr# base off
           !a1  = indexInt64OffAddr# addr 0#
@@ -46,18 +47,18 @@ get100BHWO buffer = case buffer of
       return ( I64# (a1 +# a2 +# a3 +# a4
                +# a5 +# a6 +# a7 +# a8
                +# a9 +# a10 +# a11 +# a12
-               +# a13), L.fromForeignPtr fbase (I# (off +# 100#)) (I# (len -# 100#)) )
+               +# a13), fromForeignPtr fbase (I# (off +# 100#)) (I# (len -# 100#)) )
 
-read1GHWO :: L.Buffer -> Int64
+read1GHWO :: ByteString -> Int64
 read1GHWO = go (10000000 :: Int) 0
   where
     go 0 a _ = a
     go n a b = let (a', b') = get100BHWO b in go (n - 1) (a + a') b'
 
 {-# INLINE get100BHW #-}
-get100BHW :: L.Buffer -> ( Int64, L.Buffer )
-get100BHW buffer = case buffer of
-  L.Buffer (fbase) (I# off) (I# len) ->
+get100BHW :: ByteString -> ( Int64, ByteString )
+get100BHW buffer = case toForeignPtr buffer of
+  (fbase, I# off, I# len) ->
     unsafeInlineIO $ withForeignPtr fbase $ \(Ptr base) -> do
       let !addr = plusAddr# base off
           !a1  = indexInt64OffAddr# addr 0#
@@ -76,9 +77,9 @@ get100BHW buffer = case buffer of
       return ( I64# (a1 +# a2 +# a3 +# a4
                +# a5 +# a6 +# a7 +# a8
                +# a9 +# a10 +# a11 +# a12
-               +# a13), L.fromForeignPtr fbase (I# (off +# 100#)) (I# (len -# 100#)) )
+               +# a13), fromForeignPtr fbase (I# (off +# 100#)) (I# (len -# 100#)) )
 
-read1GHW :: L.Buffer -> Int64
+read1GHW :: ByteString -> Int64
 read1GHW = go (10000000 :: Int) 0
  where
    go 0 a _ = a
@@ -105,7 +106,7 @@ get100BL = proc _ -> do
             + a9 + a10 + a11 + a12
             + fromIntegral a13
 
-read1GL :: L.Buffer -> Int64
+read1GL :: ByteString -> Int64
 read1GL = go (10000000 :: Int) 0
   where
     go 0 a _ = a
@@ -133,7 +134,7 @@ get100BLO = proc _ -> do
             + a9 + a10 + a11 + a12
             + fromIntegral a13
 
-read1GLO :: L.Buffer -> Int64
+read1GLO :: ByteString -> Int64
 read1GLO = go (10000000 :: Int) 0
   where
     go 0 a _ = a
@@ -160,7 +161,7 @@ get100BLI =
             + a9 + a10 + a11 + a12
             + fromIntegral a13
 
-read1GLI :: L.Buffer -> Int64
+read1GLI :: ByteString -> Int64
 read1GLI = go (10000000 :: Int) 0
   where
     go 0 a _ = a
@@ -178,7 +179,7 @@ read1GBench = env setupEnv $ \ ~(buffer) ->
   , bench "Levfi" $ nf read1GLI buffer
   ]
   where
-    setupEnv = L.newBuffer 1000000000
+    setupEnv = return $ BS.replicate 1000000000 0
 
 main :: IO ()
 main = defaultMain [ read1GBench ]

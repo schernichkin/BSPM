@@ -15,10 +15,10 @@ cabal-version:       >= 1.10
 
 library
   hs-source-dirs:      src
-  exposed-modules:     Lev.Buffer
-                     , Lev.Get
+  exposed-modules:     Lev.Get
                      , Lev.GetI
   build-depends:       base
+                     , bytestring
                      , deepseq
                      , ghc-prim
                      , indexed
@@ -33,6 +33,7 @@ executable lev-tolstoy
   main-is:             Main.hs
   ghc-options:         -Wall -O2 -threaded -funbox-strict-fields -with-rtsopts=-N
   build-depends:       base
+                     , bytestring
                      , ghc-prim
                      , indexed
                      , lev-tolstoy
@@ -58,6 +59,7 @@ benchmark lev-tolstoy-bench
   main-is:             Bench.hs
   hs-source-dirs:      bench
   build-depends:       base
+                     , bytestring
                      , criterion
                      , indexed
                      , lev-tolstoy

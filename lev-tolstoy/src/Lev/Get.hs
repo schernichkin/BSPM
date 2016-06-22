@@ -21,6 +21,7 @@ module Lev.Get
 import           Control.Arrow
 import           Control.Category
 import           Control.Monad.Primitive
+import           Data.ByteString.Internal
 import           Data.Int
 import           Data.Primitive
 import           Data.Profunctor
@@ -30,7 +31,6 @@ import           Foreign.ForeignPtr
 import           Foreign.ForeignPtr.Unsafe
 import           GHC.Ptr
 import           GHC.TypeLits
-import           Lev.Buffer
 import           Prelude                   hiding (id, (.))
 
 testFn :: KnownNat a => Proxy (a :: Nat) -> Addr -> Integer
@@ -146,13 +146,15 @@ get :: FixedGetter a b -> Get a b
 get = GetFixed
 {-# INLINE CONLIKE get #-}
 
-run :: Get () b -> Buffer -> (b, Buffer)
+run :: Get () b -> ByteString -> (b, ByteString)
 run (GetArr f) b = (f (), b)
-run (GetFixed FixedGetter {..}) (Buffer {..}) =
-    checkBufferLength _fixedSize _length
+run (GetFixed FixedGetter {..}) b =
+    checkBufferLength _fixedSize bufferLength
   $ unsafeInlineIO
-  $ withForeignPtr _base $ \(Ptr addr) -> return
-    ( _fixedGetter _base () _offset
-    , Buffer _base (_offset + _fixedSize) (_length - _fixedSize)
+  $ withForeignPtr base $ \(Ptr addr) -> return
+    ( _fixedGetter base () offset
+    , fromForeignPtr base (offset + _fixedSize) (bufferLength - _fixedSize)
     )
+  where
+    (base, offset, bufferLength) = toForeignPtr b
 {-# INLINE run #-}
