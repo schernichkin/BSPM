@@ -165,7 +165,7 @@ read1GLI :: ByteString -> Int64
 read1GLI = go (10000000 :: Int) 0
   where
     go 0 a _ = a
-    go n a b = let (a', b') = LI.runFixedBuffer get100BLI b in go (n - 1) (a + a') b'
+    go n a b = let (a', b') = LI.runFixedGetter get100BLI b in go (n - 1) (a + a') b'
 
 
 

@@ -1,5 +1,6 @@
 {-# LANGUAGE DataKinds           #-}
 {-# LANGUAGE KindSignatures      #-}
+{-# LANGUAGE MagicHash           #-}
 {-# LANGUAGE RecordWildCards     #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeFamilies        #-}
@@ -11,8 +12,8 @@ module Lev.GetI
   , int16Host
   , int32Host
   , int64Host
-  , runFixed
-  , runFixedBuffer
+  , runFixedGetter
+  , fixed
   ) where
 
 import           Control.Monad
@@ -22,9 +23,30 @@ import           Data.ByteString.Internal
 import           Data.Int
 import           Data.Primitive
 import           Data.Proxy
+import           Data.Word
 import           Foreign.ForeignPtr
 import           GHC.Ptr
 import           GHC.TypeLits
+
+-- * Utility functions
+
+moduleErrorMsg :: String -> String -> String
+moduleErrorMsg fun msg = "Lev.Get." ++ fun ++ ':':' ':msg
+
+moduleError :: String -> String -> a
+moduleError fun msg = error (moduleErrorMsg fun msg)
+{-# NOINLINE moduleError #-}
+
+checkBufferLength :: Int -> Int -> a -> a
+checkBufferLength required remains r =
+  if required <= remains
+    then r
+    else moduleError "checkBufferLength"
+                   ( "Bytes remains = " ++ (show remains) ++
+                     ", bytes required = " ++ (show required) )
+{-# INLINE checkBufferLength #-}
+
+-- * Fixed size getter
 
 newtype FixedGetter (i :: Nat) (o :: Nat) a = FixedGetter { unFixedGetter :: Addr -> a }
 
@@ -45,21 +67,6 @@ type instance SizeOf Int16 = 2
 type instance SizeOf Int32 = 4
 type instance SizeOf Int64 = 8
 
-data Getter a = GetterDone    !Int !a
-                -- ^ bytes read total and the result
-              | GetterPartial !Int !(Addr -> Getter a)
-                -- ^ minimal buffer size and next step
-
-instance Functor Getter where
-  fmap f (GetterDone n a) = GetterDone n $ f a
-
-moduleErrorMsg :: String -> String -> String
-moduleErrorMsg fun msg = "Lev.Get." ++ fun ++ ':':' ':msg
-
-moduleError :: String -> String -> a
-moduleError fun msg = error (moduleErrorMsg fun msg)
-{-# NOINLINE moduleError #-}
-
 prim :: forall i a . ( KnownNat i, Prim a ) => FixedGetter i (i + SizeOf a) a
 prim = FixedGetter $ \addr -> indexOffAddr (plusAddr addr $ fromIntegral $ natVal (Proxy :: Proxy i)) 0
 {-# INLINE prim #-}
@@ -76,29 +83,52 @@ int64Host :: forall i . (KnownNat i) => FixedGetter i (i + SizeOf Int64) Int64
 int64Host = prim
 {-# INLINE int64Host #-}
 
-runFixed :: FixedGetter 0 n a -> Addr -> a
-runFixed g = unFixedGetter g
-{-# INLINE runFixed #-}
-
-checkBufferLength :: Int -> Int -> a -> a
-checkBufferLength required remains r =
-  if required <= remains
-    then r
-    else moduleError "checkBufferLength"
-                   ( "Bytes remains = " ++ (show remains) ++
-                     ", bytes required = " ++ (show required) )
-{-# INLINE checkBufferLength #-}
-
-runFixedBuffer :: forall n a . ( KnownNat n )
+runFixedGetter :: forall n a . ( KnownNat n )
                => FixedGetter 0 n a -> ByteString -> (a, ByteString)
-runFixedBuffer g b =
+runFixedGetter g b =
     checkBufferLength getterLength bufferLength
   $ unsafeInlineIO
   $ withForeignPtr base $ \(Ptr addr) -> return
-    ( unFixedGetter g (Addr addr)
+    ( unFixedGetter g $ plusAddr (Addr addr) offset
     , fromForeignPtr base (offset + getterLength) (bufferLength - getterLength)
     )
   where
     (base, offset, bufferLength) = toForeignPtr b
     getterLength = fromIntegral $ natVal (Proxy :: Proxy n)
-{-# INLINE runFixedBuffer #-}
+{-# INLINE runFixedGetter #-}
+
+-- * Generic getter
+
+data Getter a = GetterDone    !a
+              | GetterPartial !Int !((ForeignPtr Word8, Addr) -> Getter a)
+                -- ^ required buffer size and next step
+
+instance Functor Getter where
+  fmap f (GetterDone a) = GetterDone $ f a
+  fmap f (GetterPartial n g) = GetterPartial n $ fmap f . g
+
+instance Applicative Getter where
+  pure = GetterDone
+  (GetterDone f) <*> b = fmap f b
+  (GetterPartial n f) <*> b = GetterPartial n $ \addr -> f addr <*> b
+
+instance Monad Getter where
+  (GetterDone a) >>= k = k a
+  (GetterPartial n f) >>= k = GetterPartial n $ \addr -> f addr >>= k
+
+fixed :: forall n a . ( KnownNat n )
+      => FixedGetter 0 n a -> Getter a
+fixed g = GetterPartial getterLength $ \(_, addr) -> GetterDone $ unFixedGetter g addr
+  where
+    getterLength = fromIntegral $ natVal (Proxy :: Proxy n)
+{-# INLINE fixed #-}
+
+runGetter :: Getter a -> ByteString -> (a, ByteString)
+runGetter g b = unsafeInlineIO $ withForeignPtr base $ \(Ptr startAddr) -> do
+  let go (GetterDone a) addr = let bytesRead = minusAddr addr $ Addr startAddr
+                               in ( a, fromForeignPtr base (offset + bytesRead) (bufferLength - bytesRead) )
+      go (GetterPartial n f) addr = undefined 
+  return $ go g $ Addr startAddr
+  where
+    (base, offset, bufferLength) = toForeignPtr b
+{-# INLINE runGetter #-}

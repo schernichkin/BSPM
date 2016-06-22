@@ -10,6 +10,7 @@ module Main where
 
 import           Control.Arrow
 import           Control.Monad.Indexed
+import           Data.ByteString       as BS
 import           Data.Int
 import           Data.Primitive.Addr
 import           GHC.Prim
@@ -47,7 +48,7 @@ test_d =
   GI.int32Host >>>= \d ->
   ireturn (a, b, c, d)
 
-test_f = GI.runFixed test_d (Addr nullAddr#)
+test_f = GI.runFixedGetter test_d (BS.replicate 16 0)
 
 --test_d :: GI.FixedGetter i (i + 16) (Int32, Int32, Int32, Int32)
 --test_d = do
