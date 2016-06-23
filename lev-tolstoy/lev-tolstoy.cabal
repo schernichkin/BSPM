@@ -16,14 +16,10 @@ cabal-version:       >= 1.10
 library
   hs-source-dirs:      src
   exposed-modules:     Lev.Get
-                     , Lev.GetI
   build-depends:       base
                      , bytestring
-                     , deepseq
                      , ghc-prim
                      , indexed
-                     -- TODO: remove profunctors and arrow impl
-                     , profunctors
                      , primitive
   default-language:    Haskell2010
   ghc-options:         -Wall -O2 -funbox-strict-fields
@@ -70,4 +66,4 @@ benchmark lev-tolstoy-bench
 
 source-repository head
   type:     git
-  location: https://github.com/schernichkin/BSPM
+  location: https://github.com/schernichkin/graphomania.git

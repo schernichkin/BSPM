@@ -21,8 +21,7 @@ import           GHC.Int
 import           GHC.IO                   (IO (..))
 import           GHC.Prim
 import           GHC.Ptr
-import qualified Lev.Get                  as L
-import qualified Lev.GetI                 as LI
+import qualified Lev.Get                  as LI
 
 
 {-# INLINE get100BHWO #-}
@@ -85,35 +84,8 @@ read1GHW = go (10000000 :: Int) 0
    go 0 a _ = a
    go n a b = let (a', b') = get100BHW b in go (n - 1) (a + a') b'
 
-{-# INLINE get100BL #-}
-get100BL :: L.Get a ( Int64 )
-get100BL = proc _ -> do
-  a1  <- (L.get L.int64Host) -< ()
-  a2  <- (L.get L.int64Host) -< ()
-  a3  <- (L.get L.int64Host) -< ()
-  a4  <- (L.get L.int64Host) -< ()
-  a5  <- (L.get L.int64Host) -< ()
-  a6  <- (L.get L.int64Host) -< ()
-  a7  <- (L.get L.int64Host) -< ()
-  a8  <- (L.get L.int64Host) -< ()
-  a9  <- (L.get L.int64Host) -< ()
-  a10 <- (L.get L.int64Host) -< ()
-  a11 <- (L.get L.int64Host) -< ()
-  a12 <- (L.get L.int64Host) -< ()
-  a13 <- (L.get L.int32Host) -< ()
-  returnA -<  a1 + a2 + a3 + a4
-            + a5 + a6 + a7 + a8
-            + a9 + a10 + a11 + a12
-            + fromIntegral a13
-
-read1GL :: ByteString -> Int64
-read1GL = go (10000000 :: Int) 0
-  where
-    go 0 a _ = a
-    go n a b = let (a', b') = L.run get100BL b in go (n - 1) (a + a') b'
-
 {-# INLINE get100BLI #-}
-get100BLI :: LI.FixedGetter 0 100 ( Int64 )
+get100BLI :: LI.GetFixed 0 100 ( Int64 )
 get100BLI =
   LI.int64Host >>>= \a1 ->
   LI.int64Host >>>= \a2 ->
@@ -137,9 +109,9 @@ read1GLI :: ByteString -> Int64
 read1GLI = go (10000000 :: Int) 0
   where
     go 0 a _ = a
-    go n a b = let (a', b') = LI.runFixedGetter get100BLI b in go (n - 1) (a + a') b'
+    go n a b = let (a', b') = LI.runGetFixed get100BLI b in go (n - 1) (a + a') b'
 
-get100BLILifted :: LI.Getter Int64
+get100BLILifted :: LI.Get Int64
 get100BLILifted = LI.fixed get100BLI
 {-# INLINE get100BLILifted #-}
 
@@ -147,14 +119,13 @@ read1GLILifted :: ByteString -> Int64
 read1GLILifted = go (10000000 :: Int) 0
   where
     go 0 a _ = a
-    go n a b = let (a', b') = LI.runGetter get100BLILifted b in go (n - 1) (a + a') b'
+    go n a b = let (a', b') = LI.runGet get100BLILifted b in go (n - 1) (a + a') b'
 
 read1GBench :: Benchmark
 read1GBench = env setupEnv $ \ ~(buffer) ->
   bgroup "read 1G"
   [ bench "Handwritten" $ nf read1GHW buffer
   , bench "Handwritten with offsets" $ nf read1GHWO buffer
-  , bench "Lev arrows" $ nf read1GL buffer
   , bench "Lev fixed getter" $ nf read1GLI buffer
   , bench "Lev converted fixed getter" $ nf read1GLILifted buffer
   ]
