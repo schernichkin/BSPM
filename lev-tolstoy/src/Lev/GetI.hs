@@ -1,6 +1,7 @@
 {-# LANGUAGE DataKinds           #-}
 {-# LANGUAGE KindSignatures      #-}
 {-# LANGUAGE MagicHash           #-}
+{-# LANGUAGE RankNTypes          #-}
 {-# LANGUAGE RecordWildCards     #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeFamilies        #-}
@@ -13,7 +14,9 @@ module Lev.GetI
   , int32Host
   , int64Host
   , runFixedGetter
+  , Getter
   , fixed
+  , runGetter
   ) where
 
 import           Control.Monad
@@ -99,6 +102,29 @@ runFixedGetter g b =
 
 -- * Generic getter
 
+type GetterState = ( Addr, Int )
+type GetterCont a r = GetterState -> a -> r
+
+newtype Getter a = Getter { unGetter :: forall r . GetterState -> GetterCont a r -> r }
+
+fixed :: forall n a . ( KnownNat n )
+      => FixedGetter 0 n a -> Getter a
+fixed g = Getter $ \(addr, remains) k ->
+  checkBufferLength len remains $
+   k (plusAddr addr len, remains - len) (unFixedGetter g addr)
+  where
+    len = fromIntegral $ natVal (Proxy :: Proxy n)
+{-# INLINE fixed #-}
+
+runGetter :: Getter a -> ByteString -> (a, ByteString)
+runGetter g b = unsafeInlineIO $ withForeignPtr base $ \(Ptr addr) -> do
+  let (addr', remains, a) = unGetter g (plusAddr (Addr addr) offset, bufferLen) $ uncurry (,,)
+  return $ (a, fromForeignPtr base (minusAddr addr' (Addr addr)) remains)
+  where
+    (base, offset, bufferLen) = toForeignPtr b
+{-# INLINE runGetter #-}
+
+{-
 data Getter a = GetterDone    !a
               | GetterPartial !Int !((ForeignPtr Word8, Addr) -> Getter a)
                 -- ^ required buffer size and next step
@@ -122,13 +148,21 @@ fixed g = GetterPartial getterLength $ \(_, addr) -> GetterDone $ unFixedGetter 
   where
     getterLength = fromIntegral $ natVal (Proxy :: Proxy n)
 {-# INLINE fixed #-}
+-}
 
-runGetter :: Getter a -> ByteString -> (a, ByteString)
+{-
 runGetter g b = unsafeInlineIO $ withForeignPtr base $ \(Ptr startAddr) -> do
-  let go (GetterDone a) addr = let bytesRead = minusAddr addr $ Addr startAddr
-                               in ( a, fromForeignPtr base (offset + bytesRead) (bufferLength - bytesRead) )
-      go (GetterPartial n f) addr = undefined 
-  return $ go g $ Addr startAddr
+  let go !(GetterDone a) !_ !bytesRead =
+        ( a, fromForeignPtr base (offset + bytesRead) (bufferLength - bytesRead) )
+      go !(GetterPartial n f) !addr !bytesRead =
+        let bytesRead' = bytesRead + n
+         in if bytesRead' <= bufferLength
+           then go (f (base, addr)) (plusAddr addr n) bytesRead'
+           else moduleError "runGetter"
+                          $ "Buffer exhausted: bytes to read = " ++ (show bytesRead') ++
+                            " buffer size = " ++ (show bufferLength)
+  return $ go g (plusAddr (Addr startAddr) offset) 0
   where
-    (base, offset, bufferLength) = toForeignPtr b
+    !(base, offset, bufferLength) = toForeignPtr b
 {-# INLINE runGetter #-}
+-}

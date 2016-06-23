@@ -112,34 +112,6 @@ read1GL = go (10000000 :: Int) 0
     go 0 a _ = a
     go n a b = let (a', b') = L.run get100BL b in go (n - 1) (a + a') b'
 
-
-{-# INLINE get100BLO #-}
-get100BLO :: L.Get a ( Int64 )
-get100BLO = proc _ -> do
-  a1  <- (L.get $ L.int64HostO 0) -< ()
-  a2  <- (L.get $ L.int64HostO 8) -< ()
-  a3  <- (L.get $ L.int64HostO 16) -< ()
-  a4  <- (L.get $ L.int64HostO 24) -< ()
-  a5  <- (L.get $ L.int64HostO 32) -< ()
-  a6  <- (L.get $ L.int64HostO 40) -< ()
-  a7  <- (L.get $ L.int64HostO 48) -< ()
-  a8  <- (L.get $ L.int64HostO 56) -< ()
-  a9  <- (L.get $ L.int64HostO 64) -< ()
-  a10 <- (L.get $ L.int64HostO 72) -< ()
-  a11 <- (L.get $ L.int64HostO 80) -< ()
-  a12 <- (L.get $ L.int64HostO 88) -< ()
-  a13 <- (L.get $ L.int32HostO 96) -< ()
-  returnA -<  a1 + a2 + a3 + a4
-            + a5 + a6 + a7 + a8
-            + a9 + a10 + a11 + a12
-            + fromIntegral a13
-
-read1GLO :: ByteString -> Int64
-read1GLO = go (10000000 :: Int) 0
-  where
-    go 0 a _ = a
-    go n a b = let (a', b') = L.run get100BLO b in go (n - 1) (a + a') b'
-
 {-# INLINE get100BLI #-}
 get100BLI :: LI.FixedGetter 0 100 ( Int64 )
 get100BLI =
@@ -167,16 +139,24 @@ read1GLI = go (10000000 :: Int) 0
     go 0 a _ = a
     go n a b = let (a', b') = LI.runFixedGetter get100BLI b in go (n - 1) (a + a') b'
 
+get100BLILifted :: LI.Getter Int64
+get100BLILifted = LI.fixed get100BLI
+{-# INLINE get100BLILifted #-}
 
+read1GLILifted :: ByteString -> Int64
+read1GLILifted = go (10000000 :: Int) 0
+  where
+    go 0 a _ = a
+    go n a b = let (a', b') = LI.runGetter get100BLILifted b in go (n - 1) (a + a') b'
 
 read1GBench :: Benchmark
 read1GBench = env setupEnv $ \ ~(buffer) ->
   bgroup "read 1G"
   [ bench "Handwritten" $ nf read1GHW buffer
   , bench "Handwritten with offsets" $ nf read1GHWO buffer
-  , bench "Lev" $ nf read1GL buffer
-  , bench "Levfo" $ nf read1GLO buffer
-  , bench "Levfi" $ nf read1GLI buffer
+  , bench "Lev arrows" $ nf read1GL buffer
+  , bench "Lev fixed getter" $ nf read1GLI buffer
+  , bench "Lev converted fixed getter" $ nf read1GLILifted buffer
   ]
   where
     setupEnv = return $ BS.replicate 1000000000 0

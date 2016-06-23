@@ -12,10 +12,6 @@ module Lev.Get
   , int16Host
   , int32Host
   , int64Host
-  , primO
-  , int16HostO
-  , int32HostO
-  , int64HostO
   ) where
 
 import           Control.Arrow
@@ -32,9 +28,6 @@ import           Foreign.ForeignPtr.Unsafe
 import           GHC.Ptr
 import           GHC.TypeLits
 import           Prelude                   hiding (id, (.))
-
-testFn :: KnownNat a => Proxy (a :: Nat) -> Addr -> Integer
-testFn p _ = natVal p
 
 moduleErrorMsg :: String -> String -> String
 moduleErrorMsg fun msg = "Lev.Get." ++ fun ++ ':':' ':msg
@@ -75,31 +68,6 @@ prim = FixedGetter
                           -- const . const $ flip indexOffAddr 0
   }
 {-# INLINE prim #-}
-
--- эта штука работает неправильно, т.к. тут получается, что мы прибавляем к
--- базовому адресу фиксированный оффсет, игнорируюя оффсет байтстринга
--- это приводит к тому, что мы читаем не весь байтстринг, а только его начало,
--- соответсвенно имеем завышенные результаты в тесте.
-primO :: forall a b . (Prim b) => Int -> FixedGetter a b
-primO off = FixedGetter
-  { _fixedSize = sizeOf (undefined :: b)
-  , _fixedGetter = \fptr _ _ -> case unsafeForeignPtrToPtr fptr of
-                                  (Ptr addr) -> indexOffAddr ((Addr addr) `plusAddr` off) 0
-                          -- const . const $ flip indexOffAddr 0
-  }
-{-# INLINE primO #-}
-
-int16HostO :: Int -> FixedGetter a Int16
-int16HostO = primO
-{-# INLINE int16HostO #-}
-
-int32HostO :: Int -> FixedGetter a Int32
-int32HostO = primO
-{-# INLINE int32HostO #-}
-
-int64HostO :: Int -> FixedGetter a Int64
-int64HostO = primO
-{-# INLINE int64HostO #-}
 
 int16Host :: FixedGetter a Int16
 int16Host = prim
