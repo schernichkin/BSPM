@@ -1,10 +1,10 @@
+{-# LANGUAGE BangPatterns        #-}
 {-# LANGUAGE DataKinds           #-}
 {-# LANGUAGE KindSignatures      #-}
 {-# LANGUAGE RankNTypes          #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeFamilies        #-}
 {-# LANGUAGE TypeOperators       #-}
-{-# LANGUAGE BangPatterns       #-}
 
 module Lev.Get
   ( GetFixed(..)
@@ -15,6 +15,7 @@ module Lev.Get
   , runGetFixed
   , Get
   , fixed
+  , byteString
   , runGet
   ) where
 
@@ -25,7 +26,9 @@ import           Data.ByteString.Internal
 import           Data.Int
 import           Data.Primitive
 import           Data.Proxy
+import           Data.Word
 import           Foreign.ForeignPtr
+import           Foreign.ForeignPtr.Unsafe
 import           GHC.Ptr
 import           GHC.TypeLits
 
@@ -105,24 +108,30 @@ runGetFixed g b =
 
 -- * Generic getter
 
-type GetState = ( Addr, Int )
+type GetState = ( ForeignPtr Word8, Addr, Int )
 type GetCont a r = GetState -> a -> r
 
 newtype Get a = Get { unGet :: forall r . GetState -> GetCont a r -> r }
 
 fixed :: forall n a . ( KnownNat n )
       => GetFixed 0 n a -> Get a
-fixed g = Get $ \(addr, remains) k ->
+fixed g = Get $ \(base, addr, remains) k ->
   checkBufferLength len remains $
-   k (plusAddr addr len, remains - len) (unGetFixed g addr)
+    k (base, plusAddr addr len, remains - len) (unGetFixed g addr)
   where
     len = fromIntegral $ natVal (Proxy :: Proxy n)
 {-# INLINE fixed #-}
 
+byteString :: Int -> Get ByteString
+byteString len = Get $ \(base, addr, remains) k ->
+  checkBufferLength len remains $
+    let !(Ptr baseAddr) = unsafeForeignPtrToPtr base
+    in k (base, plusAddr addr len, remains - len) (fromForeignPtr base (minusAddr addr (Addr baseAddr)) len)
+
 runGet :: Get a -> ByteString -> (a, ByteString)
 runGet g b = unsafeInlineIO $ withForeignPtr base $ \(Ptr addr) -> do
-  let !res = unGet g (plusAddr (Addr addr) offset, bufferLen) $ \(addr', remains) a ->
-              (a, fromForeignPtr base (minusAddr addr' (Addr addr)) remains)
+  let !res = unGet g (base, plusAddr (Addr addr) offset, bufferLen)
+              $ \(base', addr', remains) a -> (a, fromForeignPtr base' (minusAddr addr' (Addr addr)) remains)
   return res
   where
     (base, offset, bufferLen) = toForeignPtr b

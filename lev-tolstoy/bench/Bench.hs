@@ -1,4 +1,3 @@
-{-# LANGUAGE Arrows              #-}
 {-# LANGUAGE BangPatterns        #-}
 {-# LANGUAGE DataKinds           #-}
 {-# LANGUAGE DeriveGeneric       #-}
@@ -9,7 +8,6 @@
 
 module Bench where
 
-import           Control.Arrow
 import           Control.Monad.Indexed
 import           Control.Monad.Primitive
 import           Criterion.Main
