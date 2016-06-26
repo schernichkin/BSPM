@@ -18,6 +18,7 @@ library
   exposed-modules:     Lev.Get
   build-depends:       base
                      , bytestring
+                     , cpu
                      , ghc-prim
                      , indexed
                      , primitive

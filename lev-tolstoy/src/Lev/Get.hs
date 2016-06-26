@@ -12,6 +12,12 @@ module Lev.Get
   , int16Host
   , int32Host
   , int64Host
+  , int16LE
+  , int32LE
+  , int64LE
+  , int16BE
+  , int32BE
+  , int64BE
   , runGetFixed
   , Get
   , fixed
@@ -31,6 +37,7 @@ import           Foreign.ForeignPtr
 import           Foreign.ForeignPtr.Unsafe
 import           GHC.Ptr
 import           GHC.TypeLits
+import           System.Endian
 
 -- * Utility functions
 
@@ -91,6 +98,30 @@ int32Host = prim
 int64Host :: forall i . (KnownNat i) => GetFixed i (i + SizeOf Int64) Int64
 int64Host = prim
 {-# INLINE int64Host #-}
+
+int16LE :: forall i . (KnownNat i) => GetFixed i (i + SizeOf Int16) Int16
+int16LE = (fromIntegral . fromLE16 . fromIntegral :: Int16 -> Int16) `imap` prim
+{-# INLINE int16LE #-}
+
+int32LE :: forall i . (KnownNat i) => GetFixed i (i + SizeOf Int32) Int32
+int32LE = (fromIntegral . fromLE32 . fromIntegral :: Int32 -> Int32) `imap` prim
+{-# INLINE int32LE #-}
+
+int64LE :: forall i . (KnownNat i) => GetFixed i (i + SizeOf Int64) Int64
+int64LE = (fromIntegral . fromLE64 . fromIntegral :: Int64 -> Int64) `imap` prim
+{-# INLINE int64LE #-}
+
+int16BE :: forall i . (KnownNat i) => GetFixed i (i + SizeOf Int16) Int16
+int16BE = (fromIntegral . fromBE16 . fromIntegral :: Int16 -> Int16) `imap` prim
+{-# INLINE int16BE #-}
+
+int32BE :: forall i . (KnownNat i) => GetFixed i (i + SizeOf Int32) Int32
+int32BE = (fromIntegral . fromBE32 . fromIntegral :: Int32 -> Int32) `imap` prim
+{-# INLINE int32BE #-}
+
+int64BE :: forall i . (KnownNat i) => GetFixed i (i + SizeOf Int64) Int64
+int64BE = (fromIntegral . fromBE64 . fromIntegral :: Int64 -> Int64) `imap` prim
+{-# INLINE int64BE #-}
 
 runGetFixed :: forall n a . ( KnownNat n )
                => GetFixed 0 n a -> ByteString -> (a, ByteString)
