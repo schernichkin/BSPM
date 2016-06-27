@@ -144,6 +144,13 @@ type GetCont a r = GetState -> a -> r
 
 newtype Get a = Get { unGet :: forall r . GetState -> GetCont a r -> r }
 
+instance Functor Get where
+  fmap f g = Get $ \s k -> unGet g s $ \s' -> k s' . f
+
+instance Applicative Get where
+  pure x  = Get $ \s k -> k s x
+  f <*> g = Get $ \s k -> unGet f s $ \s' f' -> unGet (f' <$> g) s' k
+
 fixed :: forall n a . ( KnownNat n )
       => GetFixed 0 n a -> Get a
 fixed g = Get $ \(base, addr, remains) k ->
