@@ -9,7 +9,7 @@
 {-# LANGUAGE TypeFamilies         #-}
 {-# LANGUAGE UndecidableInstances #-}
 
-module Graphomania.Shumov.OffheapI
+module Graphomania.Shumov.OffheapL
   ( readShumov
   , offheapVertices
   ) where
@@ -17,38 +17,41 @@ module Graphomania.Shumov.OffheapI
 import           Control.DeepSeq
 import           Control.Lens.Fold
 import           Control.Lens.Internal.Getter
+import           Control.Monad.Indexed
 import           Data.ByteString              (ByteString)
 import qualified Data.ByteString              as BS
 import           Data.Int
 import           GHC.Generics                 (Generic)
-import           Offheap.GetI
+import           Lev.Get
 
 newtype ShumovOffheap = ShumovOffheap { unShumov :: ByteString } deriving (Generic)
 
 instance NFData ShumovOffheap
 
 data ShumovVertexOffheap = ShumovVertexOffheap
-  { _idSize    :: !Int16
+  { _vertexId  :: !ByteString
   , _edgeCount :: !Int32
+  , _edges     :: !ByteString
   }  deriving ( Show, Eq, Ord )
 
-getShumovVertexOffheap :: GetI ShumovVertexOffheap
-getShumovVertexOffheap = do
-  idSize     <- getInt16Host
-  skip (fromIntegral idSize)
-  edgeCount  <- getInt32Host
-  skip (fromIntegral (edgeCount * 10))
-  return $ ShumovVertexOffheap idSize edgeCount
+shumovVertexOffheap :: Get ShumovVertexOffheap
+shumovVertexOffheap = do
+  idSize     <- fixed int16BE -- want to measure original BE format
+  vertexId   <- byteString (fromIntegral idSize)
+  edgeCount  <- fixed int32BE
+  edges      <- byteString (fromIntegral edgeCount * 10)
+  return $ ShumovVertexOffheap vertexId edgeCount edges
+{-# INLINE shumovVertexOffheap #-}
 
 readShumov :: FilePath -> IO ShumovOffheap
 readShumov = fmap ShumovOffheap . BS.readFile
 
 type FoldShumovOffheap = Fold ShumovOffheap ShumovVertexOffheap
 
-{-# INLINE offheapVertices #-}
 offheapVertices :: FoldShumovOffheap
 offheapVertices f = go . unShumov
   where
     go s | BS.null s = noEffect
-         | otherwise = let (x, xs) = runByteString getShumovVertexOffheap s
+         | otherwise = let (x, xs) = runGet shumovVertexOffheap s
                         in f x *> go xs
+{-# INLINE offheapVertices #-}

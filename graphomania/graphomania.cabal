@@ -36,8 +36,8 @@ library
                      , Graphomania.Shumov
                      , Graphomania.Shumov.Internal
                      , Graphomania.Shumov.Offheap
-                     , Graphomania.Shumov.OffheapI
                      , Graphomania.Shumov.OffheapBS
+                     , Graphomania.Shumov.OffheapL
                      , Graphomania.Utils.Binary
                      , Graphomania.Utils.ByteString
   build-depends:       base >= 4.7 && < 5
@@ -49,8 +49,10 @@ library
                      , deepseq
                      , hashable
                      , hashtables
+                     , indexed
                      , keys
                      , lens
+                     , lev-tolstoy
                      , mono-traversable
                      , mwc-random
                      , offheap

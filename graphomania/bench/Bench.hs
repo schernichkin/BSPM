@@ -16,7 +16,7 @@ import           Data.Proxy
 import           Graphomania.Shumov
 import qualified Graphomania.Shumov.Offheap         as Off
 import qualified Graphomania.Shumov.OffheapBS       as OffBS
-import qualified Graphomania.Shumov.OffheapI        as OffI
+import qualified Graphomania.Shumov.OffheapL        as OffL
 import           Paths_graphomania
 import           System.IO
 
@@ -44,14 +44,14 @@ readShumovLETest = do
   return $ olength g
 
 shomovBench :: Benchmark
-shomovBench = env setupEnv $ \ ~(gBe, gLe, gOff, gOffI, gOffBS) ->
+shomovBench = env setupEnv $ \ ~(gBe, gLe, gOff, gOffBS, gOffL) ->
   bgroup "Shumov"
     [ bench "BE" $ nf olength gBe
     , bench "LE" $ nf olength gLe
     , bench "Off" $ nf olength gOff
     , bench "lengthOf" $ nf (lengthOf Off.offheapVertices) gOff
-    , bench "lengthOfI" $ nf (lengthOf OffI.offheapVertices) gOffI
     , bench "lengthOfBS" $ nf (lengthOf OffBS.offheapVertices) gOffBS
+    , bench "lengthOfL" $ nf (lengthOf OffL.offheapVertices) gOffL
     ]
   where
     setupEnv = do
@@ -60,9 +60,9 @@ shomovBench = env setupEnv $ \ ~(gBe, gLe, gOff, gOffI, gOffBS) ->
       pathLe <- getDataFileName "shumov/graph_le.bin"
       gLe <- readShumovLE pathLe
       gOff <- Off.readShumov pathLe
-      gOffI <- OffI.readShumov pathLe
       gOffBS <- OffBS.readShumov pathLe
-      return (gBe, gLe, gOff, gOffI, gOffBS)
+      gOffL <- OffL.readShumov pathBe
+      return (gBe, gLe, gOff, gOffBS, gOffL)
 
 main :: IO ()
 main = defaultMain

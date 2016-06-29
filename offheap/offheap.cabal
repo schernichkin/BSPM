@@ -17,9 +17,8 @@ library
   hs-source-dirs:      src
   exposed-modules:     Offheap
                      , Offheap.Get
-                     , Offheap.GetBS
-                     , Offheap.GetBSS
                      , Offheap.GetI
+                     , Offheap.GetBS
   build-depends:       base >= 4.7 && < 5
                      , bytestring
                      , ghc-prim

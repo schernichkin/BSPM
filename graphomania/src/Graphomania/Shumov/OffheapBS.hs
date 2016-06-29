@@ -40,6 +40,7 @@ getShumovVertexOffheap = do
   edgeCount  <- getInt32Host
   edges      <- getByteString (fromIntegral edgeCount * 10)
   return $ ShumovVertexOffheap vertexId edgeCount edges
+{-# INLINE getShumovVertexOffheap #-}
 
 readShumov :: FilePath -> IO ShumovOffheap
 readShumov = fmap ShumovOffheap . BS.readFile

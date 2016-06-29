@@ -142,6 +142,8 @@ runGetFixed g b =
 type GetState = ( ForeignPtr Word8, Addr, Int )
 type GetCont a r = GetState -> a -> r
 
+-- CPS-style allows transfer control to the next getter or short-circuit
+-- computation immidiatelly (not used currently)
 newtype Get a = Get { unGet :: forall r . GetState -> GetCont a r -> r }
 
 instance Functor Get where
@@ -150,6 +152,9 @@ instance Functor Get where
 instance Applicative Get where
   pure x  = Get $ \s k -> k s x
   f <*> g = Get $ \s k -> unGet f s $ \s' f' -> unGet (f' <$> g) s' k
+
+instance Monad Get where
+  f >>= g = Get $ \s k -> unGet f s $ \s' a -> unGet (g a) s' k
 
 fixed :: forall n a . ( KnownNat n )
       => GetFixed 0 n a -> Get a
@@ -166,6 +171,7 @@ byteString len = Get $ \(base, addr, remains) k ->
     let !(Ptr baseAddr) = unsafeForeignPtrToPtr base
     in k (base, plusAddr addr len, remains - len) (fromForeignPtr base (minusAddr addr (Addr baseAddr)) len)
 
+-- TODO: переименовать в run. Всё равно у нас конфликт имён с сеттерами.
 runGet :: Get a -> ByteString -> (a, ByteString)
 runGet g b = unsafeInlineIO $ withForeignPtr base $ \(Ptr addr) -> do
   let !res = unGet g (base, plusAddr (Addr addr) offset, bufferLen)
