@@ -1,134 +1,167 @@
 {-# LANGUAGE BangPatterns        #-}
 {-# LANGUAGE DataKinds           #-}
-{-# LANGUAGE DeriveGeneric       #-}
 {-# LANGUAGE MagicHash           #-}
-{-# LANGUAGE RecordWildCards     #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE StandaloneDeriving  #-}
 
 module Bench where
 
 import           Control.Monad.Indexed
 import           Control.Monad.Primitive
 import           Criterion.Main
-import           Data.ByteString          as BS
-import           Data.ByteString.Internal
-import           Data.Int
+import qualified Data.Binary.Get          as B
+import           Data.ByteString          (ByteString)
+import qualified Data.ByteString          as BS
+import qualified Data.ByteString.Internal as BS
 import           Foreign.ForeignPtr
 import           GHC.Int
 import           GHC.IO                   (IO (..))
 import           GHC.Prim
 import           GHC.Ptr
-import qualified Lev.Get                  as LI
+import qualified Lev.Get                  as L
 
-
-{-# INLINE get100BHWO #-}
-get100BHWO :: ByteString -> ( Int64, ByteString )
-get100BHWO buffer = case toForeignPtr buffer of
-  (fbase, I# off, I# len) ->
-    unsafeInlineIO $ withForeignPtr fbase $ \(Ptr base) -> do
-      let !addr = plusAddr# base off
-          !a1  = indexInt64OffAddr# addr 0#
-          !a2  = indexInt64OffAddr# addr 1#
-          !a3  = indexInt64OffAddr# addr 2#
-          !a4  = indexInt64OffAddr# addr 3#
-          !a5  = indexInt64OffAddr# addr 4#
-          !a6  = indexInt64OffAddr# addr 5#
-          !a7  = indexInt64OffAddr# addr 6#
-          !a8  = indexInt64OffAddr# addr 7#
-          !a9  = indexInt64OffAddr# addr 8#
-          !a10 = indexInt64OffAddr# addr 9#
-          !a11 = indexInt64OffAddr# addr 10#
-          !a12 = indexInt64OffAddr# addr 11#
-          !a13 = indexInt32OffAddr# addr 24#
-      return ( I64# (a1 +# a2 +# a3 +# a4
-               +# a5 +# a6 +# a7 +# a8
-               +# a9 +# a10 +# a11 +# a12
-               +# a13), fromForeignPtr fbase (I# (off +# 100#)) (I# (len -# 100#)) )
-
-read1GHWO :: ByteString -> Int64
-read1GHWO = go (10000000 :: Int) 0
+runBinaryGetStrict :: B.Get a -> ByteString -> (a, ByteString)
+runBinaryGetStrict g = feed (B.runGetIncremental g) . Just
   where
-    go 0 a _ = a
-    go n a b = let (a', b') = get100BHWO b in go (n - 1) (a + a') b'
+    feed (B.Done s _ a) _ = (a, s)
+    feed (B.Partial f) s = feed (f s) Nothing
+    feed (B.Fail _ pos msg) _ = error $ "Bench.runBinaryGetStrict failed at position "
+                                     ++ show pos ++ " with message : " ++ msg
+{-# INLINE runBinaryGetStrict #-}
 
-{-# INLINE get100BHW #-}
-get100BHW :: ByteString -> ( Int64, ByteString )
-get100BHW buffer = case toForeignPtr buffer of
-  (fbase, I# off, I# len) ->
-    unsafeInlineIO $ withForeignPtr fbase $ \(Ptr base) -> do
-      let !addr = plusAddr# base off
-          !a1  = indexInt64OffAddr# addr 0#
-          !a2  = indexInt64OffAddr# (plusAddr# addr  8#) 0#
-          !a3  = indexInt64OffAddr# (plusAddr# addr 16#) 0#
-          !a4  = indexInt64OffAddr# (plusAddr# addr 24#) 0#
-          !a5  = indexInt64OffAddr# (plusAddr# addr 32#) 0#
-          !a6  = indexInt64OffAddr# (plusAddr# addr 40#) 0#
-          !a7  = indexInt64OffAddr# (plusAddr# addr 48#) 0#
-          !a8  = indexInt64OffAddr# (plusAddr# addr 56#) 0#
-          !a9  = indexInt64OffAddr# (plusAddr# addr 64#) 0#
-          !a10 = indexInt64OffAddr# (plusAddr# addr 72#) 0#
-          !a11 = indexInt64OffAddr# (plusAddr# addr 80#) 0#
-          !a12 = indexInt64OffAddr# (plusAddr# addr 88#) 0#
-          !a13 = indexInt32OffAddr# (plusAddr# addr 96#) 0#
-      return ( I64# (a1 +# a2 +# a3 +# a4
-               +# a5 +# a6 +# a7 +# a8
-               +# a9 +# a10 +# a11 +# a12
-               +# a13), fromForeignPtr fbase (I# (off +# 100#)) (I# (len -# 100#)) )
-
-read1GHW :: ByteString -> Int64
-read1GHW = go (10000000 :: Int) 0
- where
-   go 0 a _ = a
-   go n a b = let (a', b') = get100BHW b in go (n - 1) (a + a') b'
-
-{-# INLINE get100BLI #-}
-get100BLI :: LI.GetFixed 0 100 ( Int64 )
-get100BLI =
-  LI.int64Host >>>= \a1 ->
-  LI.int64Host >>>= \a2 ->
-  LI.int64Host >>>= \a3 ->
-  LI.int64Host >>>= \a4 ->
-  LI.int64Host >>>= \a5 ->
-  LI.int64Host >>>= \a6 ->
-  LI.int64Host >>>= \a7 ->
-  LI.int64Host >>>= \a8 ->
-  LI.int64Host >>>= \a9 ->
-  LI.int64Host >>>= \a10 ->
-  LI.int64Host >>>= \a11 ->
-  LI.int64Host >>>= \a12 ->
-  LI.int32Host >>>= \a13 ->
-  ireturn $   a1 + a2 + a3 + a4
-            + a5 + a6 + a7 + a8
-            + a9 + a10 + a11 + a12
-            + fromIntegral a13
-
-read1GLI :: ByteString -> Int64
-read1GLI = go (10000000 :: Int) 0
+readerBench :: Benchmark
+readerBench = bgroup "reader" [ strict ]
   where
-    go 0 a _ = a
-    go n a b = let (a', b') = LI.runGetFixed get100BLI b in go (n - 1) (a + a') b'
+    strict = bgroup "strict" [ read1Ginto12Int64plusInt32 ]
+      where
+        read1Ginto12Int64plusInt32 = env setupEnv $ \ ~(buffer) ->
+          bgroup "read 1G into 12 int64 + int32"
+          [ bench "handwritten (indexOffAddr#)" $ nf handwritten buffer
+          , bench "handwritten (indexOffAddr# with offsets) " $ nf handwrittenOff buffer
+          , bench "lev" $ nf lev buffer
+          , bench "lev fixed" $ nf levFixed buffer
+          , bench "binary" $ nf binary buffer
+          ]
+          where
+            bufferSize :: Int
+            bufferSize = 1000000000
+            {-# INLINE bufferSize #-}
 
-get100BLILifted :: LI.Get Int64
-get100BLILifted = LI.fixed get100BLI
-{-# INLINE get100BLILifted #-}
+            iterations :: Int
+            iterations = bufferSize `div` 100
+            {-# INLINE iterations #-}
 
-read1GLILifted :: ByteString -> Int64
-read1GLILifted = go (10000000 :: Int) 0
+            setupEnv :: IO ByteString
+            setupEnv = return $ BS.replicate bufferSize 0
+
+            run :: (ByteString -> (Int64, ByteString)) -> ByteString -> Int64
+            run f = go 0 iterations
+              where
+                go a 0 _ = a
+                go a n s = let (a', s') = f s in go (a + a') (n - 1) s'
+            {-# INLINE run #-}
+
+            handwritten :: ByteString -> Int64
+            handwritten = run $ \buffer -> case BS.toForeignPtr buffer of
+              (fbase, I# off, I# len) ->
+                unsafeInlineIO $ withForeignPtr fbase $ \(Ptr base) -> do
+                  let !addr = plusAddr# base off
+                      !a1  = indexInt64OffAddr# addr 0#
+                      !a2  = indexInt64OffAddr# (plusAddr# addr  8#) 0#
+                      !a3  = indexInt64OffAddr# (plusAddr# addr 16#) 0#
+                      !a4  = indexInt64OffAddr# (plusAddr# addr 24#) 0#
+                      !a5  = indexInt64OffAddr# (plusAddr# addr 32#) 0#
+                      !a6  = indexInt64OffAddr# (plusAddr# addr 40#) 0#
+                      !a7  = indexInt64OffAddr# (plusAddr# addr 48#) 0#
+                      !a8  = indexInt64OffAddr# (plusAddr# addr 56#) 0#
+                      !a9  = indexInt64OffAddr# (plusAddr# addr 64#) 0#
+                      !a10 = indexInt64OffAddr# (plusAddr# addr 72#) 0#
+                      !a11 = indexInt64OffAddr# (plusAddr# addr 80#) 0#
+                      !a12 = indexInt64OffAddr# (plusAddr# addr 88#) 0#
+                      !a13 = indexInt32OffAddr# (plusAddr# addr 96#) 0#
+                  return ( I64# (a1 +# a2 +# a3 +# a4
+                           +# a5 +# a6 +# a7 +# a8
+                           +# a9 +# a10 +# a11 +# a12
+                           +# a13), BS.fromForeignPtr fbase (I# (off +# 100#)) (I# (len -# 100#)) )
+            {-# NOINLINE handwritten #-}
+
+            handwrittenOff :: ByteString -> Int64
+            handwrittenOff = run $ \buffer -> case BS.toForeignPtr buffer of
+              (fbase, I# off, I# len) ->
+                unsafeInlineIO $ withForeignPtr fbase $ \(Ptr base) -> do
+                  let !addr = plusAddr# base off
+                      !a1  = indexInt64OffAddr# addr 0#
+                      !a2  = indexInt64OffAddr# addr 1#
+                      !a3  = indexInt64OffAddr# addr 2#
+                      !a4  = indexInt64OffAddr# addr 3#
+                      !a5  = indexInt64OffAddr# addr 4#
+                      !a6  = indexInt64OffAddr# addr 5#
+                      !a7  = indexInt64OffAddr# addr 6#
+                      !a8  = indexInt64OffAddr# addr 7#
+                      !a9  = indexInt64OffAddr# addr 8#
+                      !a10 = indexInt64OffAddr# addr 9#
+                      !a11 = indexInt64OffAddr# addr 10#
+                      !a12 = indexInt64OffAddr# addr 11#
+                      !a13 = indexInt32OffAddr# addr 24#
+                  return ( I64# (a1 +# a2 +# a3 +# a4
+                           +# a5 +# a6 +# a7 +# a8
+                           +# a9 +# a10 +# a11 +# a12
+                           +# a13), BS.fromForeignPtr fbase (I# (off +# 100#)) (I# (len -# 100#)) )
+            {-# NOINLINE handwrittenOff #-}
+
+            fixedGetter :: L.GetFixed 0 100 Int64
+            fixedGetter =
+              L.int64Host >>>= \a1 ->
+              L.int64Host >>>= \a2 ->
+              L.int64Host >>>= \a3 ->
+              L.int64Host >>>= \a4 ->
+              L.int64Host >>>= \a5 ->
+              L.int64Host >>>= \a6 ->
+              L.int64Host >>>= \a7 ->
+              L.int64Host >>>= \a8 ->
+              L.int64Host >>>= \a9 ->
+              L.int64Host >>>= \a10 ->
+              L.int64Host >>>= \a11 ->
+              L.int64Host >>>= \a12 ->
+              L.int32Host >>>= \a13 ->
+              ireturn $   a1 + a2 + a3 + a4
+                        + a5 + a6 + a7 + a8
+                        + a9 + a10 + a11 + a12
+                        + fromIntegral a13
+            {-# INLINE fixedGetter #-}
+
+            lev = run $ L.run $ L.fixed fixedGetter
+            {-# NOINLINE lev #-}
+
+            levFixed = run $ L.runFixed fixedGetter
+            {-# NOINLINE levFixed #-}
+
+            binary = run $ runBinaryGetStrict $ do
+              a1 <- B.getInt64host
+              a2 <- B.getInt64host
+              a3 <- B.getInt64host
+              a4 <- B.getInt64host
+              a5 <- B.getInt64host
+              a6 <- B.getInt64host
+              a7 <- B.getInt64host
+              a8 <- B.getInt64host
+              a9 <- B.getInt64host
+              a10 <- B.getInt64host
+              a11 <- B.getInt64host
+              a12 <- B.getInt64host
+              a13 <- B.getInt32host
+              return $ a1 + a2 + a3 + a4
+                     + a5 + a6 + a7 + a8
+                     + a9 + a10 + a11 + a12
+                     + fromIntegral a13
+            {-# NOINLINE binary #-}
+
+writerBench :: Benchmark
+writerBench = bgroup "Writer" [ strict ]
   where
-    go 0 a _ = a
-    go n a b = let (a', b') = LI.runGet get100BLILifted b in go (n - 1) (a + a') b'
-
-read1GBench :: Benchmark
-read1GBench = env setupEnv $ \ ~(buffer) ->
-  bgroup "read 1G"
-  [ bench "Handwritten" $ nf read1GHW buffer
-  , bench "Handwritten with offsets" $ nf read1GHWO buffer
-  , bench "Lev fixed getter" $ nf read1GLI buffer
-  , bench "Lev converted fixed getter" $ nf read1GLILifted buffer
-  ]
-  where
-    setupEnv = return $ BS.replicate 1000000000 0
+    strict = bgroup "Strict" [ ]
 
 main :: IO ()
-main = defaultMain [ read1GBench ]
+main = defaultMain
+  [ readerBench
+  , writerBench
+  ]

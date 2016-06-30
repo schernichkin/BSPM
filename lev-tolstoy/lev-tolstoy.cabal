@@ -23,12 +23,13 @@ library
                      , indexed
                      , primitive
   default-language:    Haskell2010
-  ghc-options:         -Wall -O2 -funbox-strict-fields
+  ghc-options:         -Wall -Werror -O2 -funbox-strict-fields
 
+-- TODO: remove
 executable lev-tolstoy
   hs-source-dirs:      app
   main-is:             Main.hs
-  ghc-options:         -Wall -O2 -threaded -funbox-strict-fields -with-rtsopts=-N
+  ghc-options:         -Wall -O2 -funbox-strict-fields
   build-depends:       base
                      , bytestring
                      , ghc-prim
@@ -48,7 +49,7 @@ test-suite lev-tolstoy-test
                      , test-framework
                      , test-framework-hunit
                      , test-framework-quickcheck2
-  ghc-options:         -Wall -O2 -funbox-strict-fields -main-is Spec.main
+  ghc-options:         -Wall -Werror -O2 -funbox-strict-fields -main-is Spec.main
   default-language:    Haskell2010
 
 benchmark lev-tolstoy-bench
@@ -56,6 +57,7 @@ benchmark lev-tolstoy-bench
   main-is:             Bench.hs
   hs-source-dirs:      bench
   build-depends:       base
+                     , binary >= 0.8.4.0
                      , bytestring
                      , criterion
                      , indexed
@@ -63,7 +65,7 @@ benchmark lev-tolstoy-bench
                      , ghc-prim
                      , primitive
   default-language:    Haskell2010
-  ghc-options:         -Wall -O2 -funbox-strict-fields -main-is Bench.main
+  ghc-options:         -Wall -Werror -O2 -funbox-strict-fields -main-is Bench.main
 
 source-repository head
   type:     git

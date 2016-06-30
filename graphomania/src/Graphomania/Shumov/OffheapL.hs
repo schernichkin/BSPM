@@ -52,6 +52,6 @@ offheapVertices :: FoldShumovOffheap
 offheapVertices f = go . unShumov
   where
     go s | BS.null s = noEffect
-         | otherwise = let (x, xs) = runGet shumovVertexOffheap s
+         | otherwise = let (x, xs) = run shumovVertexOffheap s
                         in f x *> go xs
 {-# INLINE offheapVertices #-}

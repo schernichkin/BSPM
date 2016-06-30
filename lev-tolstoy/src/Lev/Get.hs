@@ -7,7 +7,7 @@
 {-# LANGUAGE TypeOperators       #-}
 
 module Lev.Get
-  ( GetFixed(..)
+  ( GetFixed
   , prim
   , int16Host
   , int32Host
@@ -18,11 +18,11 @@ module Lev.Get
   , int16BE
   , int32BE
   , int64BE
-  , runGetFixed
+  , runFixed
   , Get
   , fixed
   , byteString
-  , runGet
+  , run
   ) where
 
 import           Control.Monad
@@ -123,9 +123,9 @@ int64BE :: forall i . (KnownNat i) => GetFixed i (i + SizeOf Int64) Int64
 int64BE = (fromIntegral . fromBE64 . fromIntegral :: Int64 -> Int64) `imap` prim
 {-# INLINE int64BE #-}
 
-runGetFixed :: forall n a . ( KnownNat n )
+runFixed :: forall n a . ( KnownNat n )
                => GetFixed 0 n a -> ByteString -> (a, ByteString)
-runGetFixed g b =
+runFixed g b =
     checkBufferLength getterLength bufferLength
   $ unsafeInlineIO
   $ withForeignPtr base $ \(Ptr addr) -> return
@@ -135,7 +135,7 @@ runGetFixed g b =
   where
     (base, offset, bufferLength) = toForeignPtr b
     getterLength = fromIntegral $ natVal (Proxy :: Proxy n)
-{-# INLINE runGetFixed #-}
+{-# INLINE runFixed #-}
 
 -- * Generic getter
 
@@ -172,11 +172,11 @@ byteString len = Get $ \(base, addr, remains) k ->
     in k (base, plusAddr addr len, remains - len) (fromForeignPtr base (minusAddr addr (Addr baseAddr)) len)
 
 -- TODO: переименовать в run. Всё равно у нас конфликт имён с сеттерами.
-runGet :: Get a -> ByteString -> (a, ByteString)
-runGet g b = unsafeInlineIO $ withForeignPtr base $ \(Ptr addr) -> do
+run :: Get a -> ByteString -> (a, ByteString)
+run g b = unsafeInlineIO $ withForeignPtr base $ \(Ptr addr) -> do
   let !res = unGet g (base, plusAddr (Addr addr) offset, bufferLen)
               $ \(base', addr', remains) a -> (a, fromForeignPtr base' (minusAddr addr' (Addr addr)) remains)
   return res
   where
     (base, offset, bufferLen) = toForeignPtr b
-{-# INLINE runGet #-}
+{-# INLINE run #-}

@@ -21,9 +21,9 @@ test_a =
 {-# INLINE test_a #-}
 
 
-test_b = runGetFixed test_a (BS.replicate 16 0)
+test_b = runFixed test_a (BS.replicate 16 0)
 
-test_c = runGet (fixed test_a) (BS.replicate 16 0)
+test_c = run (fixed test_a) (BS.replicate 16 0)
 
 main :: IO ()
 main = do
