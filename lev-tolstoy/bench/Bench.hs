@@ -30,17 +30,19 @@ runBinaryGetStrict g = feed (B.runGetIncremental g) . Just
 {-# INLINE runBinaryGetStrict #-}
 
 runCerealGetStrict :: C.Get a -> ByteString -> (a, ByteString)
-runCerealGetStrict g s = case (C.runGetPartial g s) of
+runCerealGetStrict g = \s -> case (C.runGetPartial g s) of
   C.Done a s'  -> (a, s')
   C.Partial _  -> error $ "Bench.runCerealGetStrict failed: unexpected Partial."
   C.Fail msg _ -> error $ "Bench.runCerealGetStrict failed with message : " ++ msg
-
 {-# INLINE runCerealGetStrict #-}
 
 readerBench :: Benchmark
 readerBench = bgroup "reader" [ strict ]
   where
-    strict = bgroup "strict" [ read1Ginto12Int64plusInt32 ]
+    strict = bgroup "strict"
+      [ read1Ginto12Int64plusInt32
+      , read1Ginto4BS100
+      ]
       where
         read1Ginto12Int64plusInt32 = env setupEnv $ \ ~(buffer) ->
           bgroup "read 1G into 12 int64 + int32"
@@ -184,7 +186,6 @@ readerBench = bgroup "reader" [ strict ]
                      + a9 + a10 + a11 + a12) :: Int64)
                      + fromIntegral a13
             {-# NOINLINE cereal #-}
-
 
 writerBench :: Benchmark
 writerBench = bgroup "Writer" [ strict ]

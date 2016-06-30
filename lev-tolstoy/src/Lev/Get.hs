@@ -139,12 +139,14 @@ runFixed g b =
 
 -- * Generic getter
 
-type GetState = ( ForeignPtr Word8, Addr, Int )
-type GetCont a r = GetState -> a -> r
+type State = ( ForeignPtr Word8, Addr, Int )
 
--- CPS-style allows transfer control to the next getter or short-circuit
--- computation immidiatelly (not used currently)
-newtype Get a = Get { unGet :: forall r . GetState -> GetCont a r -> r }
+data Result a = Done  !a
+              | Fetch !Addr !Int !(State -> Result a)
+
+type Cont a r = State -> a -> Result r
+
+newtype Get a = Get { unGet :: forall r . State -> Cont a r -> Result r }
 
 instance Functor Get where
   fmap f g = Get $ \s k -> unGet g s $ \s' -> k s' . f
@@ -156,13 +158,16 @@ instance Applicative Get where
 instance Monad Get where
   f >>= g = Get $ \s k -> unGet f s $ \s' a -> unGet (g a) s' k
 
+checked :: Int -> (Addr -> a) -> Get a
+checked len get = Get $ \(base, addr, remains) k ->
+  if len <= remains
+    then k (base, plusAddr addr len, remains - len) (get addr)
+    else Fetch addr len $ \(base', addr', remains') -> k (base', plusAddr addr' len, remains' - len) (get addr)
+{-# INLINE checked #-}
+
 fixed :: forall n a . ( KnownNat n )
       => GetFixed 0 n a -> Get a
-fixed g = Get $ \(base, addr, remains) k ->
-  checkBufferLength len remains $
-    k (base, plusAddr addr len, remains - len) (unGetFixed g addr)
-  where
-    len = fromIntegral $ natVal (Proxy :: Proxy n)
+fixed = checked (fromIntegral $ natVal (Proxy :: Proxy n)) . unGetFixed
 {-# INLINE fixed #-}
 
 byteString :: Int -> Get ByteString
@@ -171,12 +176,13 @@ byteString len = Get $ \(base, addr, remains) k ->
     let !(Ptr baseAddr) = unsafeForeignPtrToPtr base
     in k (base, plusAddr addr len, remains - len) (fromForeignPtr base (minusAddr addr (Addr baseAddr)) len)
 
--- TODO: переименовать в run. Всё равно у нас конфликт имён с сеттерами.
 run :: Get a -> ByteString -> (a, ByteString)
 run g b = unsafeInlineIO $ withForeignPtr base $ \(Ptr addr) -> do
   let !res = unGet g (base, plusAddr (Addr addr) offset, bufferLen)
-              $ \(base', addr', remains) a -> (a, fromForeignPtr base' (minusAddr addr' (Addr addr)) remains)
-  return res
+              $ \(base', addr', remains) a -> Done (a, fromForeignPtr base' (minusAddr addr' (Addr addr)) remains)
+  case res of
+    Done a -> return a
+    Fetch _ _ _ -> error "fetch."
   where
     (base, offset, bufferLen) = toForeignPtr b
 {-# INLINE run #-}
