@@ -59,6 +59,7 @@ benchmark lev-tolstoy-bench
   build-depends:       base
                      , binary >= 0.8.4.0
                      , bytestring
+                     , cereal
                      , criterion
                      , indexed
                      , lev-tolstoy

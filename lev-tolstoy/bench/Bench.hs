@@ -12,6 +12,7 @@ import qualified Data.Binary.Get          as B
 import           Data.ByteString          (ByteString)
 import qualified Data.ByteString          as BS
 import qualified Data.ByteString.Internal as BS
+import qualified Data.Serialize.Get       as C
 import           Foreign.ForeignPtr
 import           GHC.Int
 import           GHC.IO                   (IO (..))
@@ -28,6 +29,14 @@ runBinaryGetStrict g = feed (B.runGetIncremental g) . Just
                                      ++ show pos ++ " with message : " ++ msg
 {-# INLINE runBinaryGetStrict #-}
 
+runCerealGetStrict :: C.Get a -> ByteString -> (a, ByteString)
+runCerealGetStrict g s = case (C.runGetPartial g s) of
+  C.Done a s'  -> (a, s')
+  C.Partial _  -> error $ "Bench.runCerealGetStrict failed: unexpected Partial."
+  C.Fail msg _ -> error $ "Bench.runCerealGetStrict failed with message : " ++ msg
+
+{-# INLINE runCerealGetStrict #-}
+
 readerBench :: Benchmark
 readerBench = bgroup "reader" [ strict ]
   where
@@ -40,6 +49,7 @@ readerBench = bgroup "reader" [ strict ]
           , bench "lev" $ nf lev buffer
           , bench "lev fixed" $ nf levFixed buffer
           , bench "binary" $ nf binary buffer
+          , bench "cereal" $ nf cereal buffer
           ]
           where
             bufferSize :: Int
@@ -154,6 +164,27 @@ readerBench = bgroup "reader" [ strict ]
                      + a9 + a10 + a11 + a12
                      + fromIntegral a13
             {-# NOINLINE binary #-}
+
+            cereal = run $ runCerealGetStrict $ do
+              a1 <- C.getWord64host
+              a2 <- C.getWord64host
+              a3 <- C.getWord64host
+              a4 <- C.getWord64host
+              a5 <- C.getWord64host
+              a6 <- C.getWord64host
+              a7 <- C.getWord64host
+              a8 <- C.getWord64host
+              a9 <- C.getWord64host
+              a10 <- C.getWord64host
+              a11 <- C.getWord64host
+              a12 <- C.getWord64host
+              a13 <- C.getWord32host
+              return $ (fromIntegral (a1 + a2 + a3 + a4
+                     + a5 + a6 + a7 + a8
+                     + a9 + a10 + a11 + a12) :: Int64)
+                     + fromIntegral a13
+            {-# NOINLINE cereal #-}
+
 
 writerBench :: Benchmark
 writerBench = bgroup "Writer" [ strict ]
