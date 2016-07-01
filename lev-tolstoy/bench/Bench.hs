@@ -41,7 +41,7 @@ readerBench = bgroup "reader" [ strict ]
   where
     strict = bgroup "strict"
       [ read1Ginto12Int64plusInt32
-      , read1Ginto4BS100
+      , bigVsLittleEndian
       ]
       where
         read1Ginto12Int64plusInt32 = env setupEnv $ \ ~(buffer) ->
@@ -186,6 +186,70 @@ readerBench = bgroup "reader" [ strict ]
                      + a9 + a10 + a11 + a12) :: Int64)
                      + fromIntegral a13
             {-# NOINLINE cereal #-}
+
+        bigVsLittleEndian = env setupEnv $ \ ~(buffer) ->
+          bgroup "read 1G into 12 int64 + int32"
+          [ bench "lev big-endian" $ nf bigEndian buffer
+          , bench "lev little-endian" $ nf littleEndian buffer
+          ]
+          where
+            bufferSize :: Int
+            bufferSize = 1000000000
+            {-# INLINE bufferSize #-}
+
+            iterations :: Int
+            iterations = bufferSize `div` 100
+            {-# INLINE iterations #-}
+
+            setupEnv :: IO ByteString
+            setupEnv = return $ BS.replicate bufferSize 0
+
+            run :: (ByteString -> (Int64, ByteString)) -> ByteString -> Int64
+            run f = go 0 iterations
+              where
+                go a 0 _ = a
+                go a n s = let (a', s') = f s in go (a + a') (n - 1) s'
+            {-# INLINE run #-}
+
+            bigEndian = run $ L.run $ L.fixed $
+              L.int64BE >>>= \a1 ->
+              L.int64BE >>>= \a2 ->
+              L.int64BE >>>= \a3 ->
+              L.int64BE >>>= \a4 ->
+              L.int64BE >>>= \a5 ->
+              L.int64BE >>>= \a6 ->
+              L.int64BE >>>= \a7 ->
+              L.int64BE >>>= \a8 ->
+              L.int64BE >>>= \a9 ->
+              L.int64BE >>>= \a10 ->
+              L.int64BE >>>= \a11 ->
+              L.int64BE >>>= \a12 ->
+              L.int32BE >>>= \a13 ->
+              ireturn $   a1 + a2 + a3 + a4
+                        + a5 + a6 + a7 + a8
+                        + a9 + a10 + a11 + a12
+                        + fromIntegral a13
+            {-# NOINLINE bigEndian #-}
+
+            littleEndian = run $ L.run $ L.fixed $
+              L.int64LE >>>= \a1 ->
+              L.int64LE >>>= \a2 ->
+              L.int64LE >>>= \a3 ->
+              L.int64LE >>>= \a4 ->
+              L.int64LE >>>= \a5 ->
+              L.int64LE >>>= \a6 ->
+              L.int64LE >>>= \a7 ->
+              L.int64LE >>>= \a8 ->
+              L.int64LE >>>= \a9 ->
+              L.int64LE >>>= \a10 ->
+              L.int64LE >>>= \a11 ->
+              L.int64LE >>>= \a12 ->
+              L.int32LE >>>= \a13 ->
+              ireturn $   a1 + a2 + a3 + a4
+                        + a5 + a6 + a7 + a8
+                        + a9 + a10 + a11 + a12
+                        + fromIntegral a13
+            {-# NOINLINE littleEndian #-}
 
 writerBench :: Benchmark
 writerBench = bgroup "Writer" [ strict ]
