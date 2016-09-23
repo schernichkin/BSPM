@@ -16,20 +16,29 @@ cabal-version:       >= 1.10
 library
   hs-source-dirs:      src
   exposed-modules:     Lev.Get
+                     , Lev.Layout
+                     , Lev.Put
+                     , Lev.Read
+                     , Lev.Write
+                     , Lev.DoSyntax
   build-depends:       base
                      , bytestring
                      , cpu
+                     , effect-monad
                      , ghc-prim
-                     , indexed
                      , primitive
+                     , singletons
+                     , haskell-src-meta
+                     , indexed
+                     , template-haskell
   default-language:    Haskell2010
-  ghc-options:         -Wall -Werror -O2 -funbox-strict-fields
+  ghc-options:         -Wall -O2 -funbox-strict-fields
 
 -- TODO: remove
 executable lev-tolstoy
   hs-source-dirs:      app
   main-is:             Main.hs
-  ghc-options:         -Wall -O2 -funbox-strict-fields
+  ghc-options:         -Wall -O2 -funbox-strict-fields -ddump-cmm -ddump-asm
   build-depends:       base
                      , bytestring
                      , ghc-prim
@@ -61,12 +70,13 @@ benchmark lev-tolstoy-bench
                      , bytestring
                      , cereal
                      , criterion
+                     , effect-monad
                      , indexed
                      , lev-tolstoy
                      , ghc-prim
                      , primitive
   default-language:    Haskell2010
-  ghc-options:         -Wall -Werror -O2 -funbox-strict-fields -main-is Bench.main
+  ghc-options:         -Wall -O2 -funbox-strict-fields -main-is Bench.main
 
 source-repository head
   type:     git

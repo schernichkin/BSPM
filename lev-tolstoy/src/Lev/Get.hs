@@ -6,6 +6,10 @@
 {-# LANGUAGE TypeFamilies        #-}
 {-# LANGUAGE TypeOperators       #-}
 
+-- todo: добавить адаптер storable
+-- использовать #include "MachDeps.h"
+-- для вычисления alignment
+
 module Lev.Get
   ( GetFixed
   , prim
@@ -37,6 +41,7 @@ import           Foreign.ForeignPtr
 import           Foreign.ForeignPtr.Unsafe
 import           GHC.Ptr
 import           GHC.TypeLits
+import           Lev.Layout
 import           System.Endian
 
 -- * Utility functions
@@ -77,11 +82,6 @@ instance IxApplicative GetFixed where
 
 instance IxMonad GetFixed where
   k `ibind` m = GetFixed $ flip (unGetFixed . k) `ap` unGetFixed m
-
-type family SizeOf a :: Nat
-type instance SizeOf Int16 = 2
-type instance SizeOf Int32 = 4
-type instance SizeOf Int64 = 8
 
 prim :: forall i a . ( KnownNat i, Prim a ) => GetFixed i (i + SizeOf a) a
 prim = GetFixed $ \addr -> indexOffAddr (plusAddr addr $ fromIntegral $ natVal (Proxy :: Proxy i)) 0

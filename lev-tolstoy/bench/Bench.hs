@@ -19,6 +19,8 @@ import           GHC.IO                   (IO (..))
 import           GHC.Prim
 import           GHC.Ptr
 import qualified Lev.Get                  as L
+import qualified Lev.Layout               as R
+import qualified Lev.Read                 as R
 
 runBinaryGetStrict :: B.Get a -> ByteString -> (a, ByteString)
 runBinaryGetStrict g = feed (B.runGetIncremental g) . Just
@@ -48,10 +50,10 @@ readerBench = bgroup "reader" [ strict ]
           bgroup "read 1G into 12 int64 + int32"
           [ bench "handwritten (indexOffAddr#)" $ nf handwritten buffer
           , bench "handwritten (indexOffAddr# with offsets) " $ nf handwrittenOff buffer
-          , bench "lev" $ nf lev buffer
           , bench "lev fixed" $ nf levFixed buffer
-          , bench "binary" $ nf binary buffer
-          , bench "cereal" $ nf cereal buffer
+          , bench "lev R" $ nfIO $ fixedReader buffer
+--          , bench "binary" $ nf binary buffer
+--          , bench "cereal" $ nf cereal buffer
           ]
           where
             bufferSize :: Int
@@ -71,6 +73,15 @@ readerBench = bgroup "reader" [ strict ]
                 go a 0 _ = a
                 go a n s = let (a', s') = f s in go (a + a') (n - 1) s'
             {-# INLINE run #-}
+
+            runIO :: (ByteString -> IO (Int64, ByteString)) -> ByteString -> IO Int64
+            runIO f = go 0 iterations
+              where
+                go a 0 _ = return a
+                go a n s = do
+                  (a', s') <- f s
+                  go (a + a') (n - 1) s'
+            {-# INLINE runIO #-}
 
             handwritten :: ByteString -> Int64
             handwritten = run $ \buffer -> case BS.toForeignPtr buffer of
@@ -141,9 +152,6 @@ readerBench = bgroup "reader" [ strict ]
                         + fromIntegral a13
             {-# INLINE fixedGetter #-}
 
-            lev = run $ L.run $ L.fixed fixedGetter
-            {-# NOINLINE lev #-}
-
             levFixed = run $ L.runFixed fixedGetter
             {-# NOINLINE levFixed #-}
 
@@ -186,6 +194,29 @@ readerBench = bgroup "reader" [ strict ]
                      + a9 + a10 + a11 + a12) :: Int64)
                      + fromIntegral a13
             {-# NOINLINE cereal #-}
+
+            rGetter :: R.Reader IO ('R.StaticLayout 0 100) Int64
+            rGetter =
+              R.int64Host R.>>>= \a1 ->
+              R.int64Host R.>>>= \a2 ->
+              R.int64Host R.>>>= \a3 ->
+              R.int64Host R.>>>= \a4 ->
+              R.int64Host R.>>>= \a5 ->
+              R.int64Host R.>>>= \a6 ->
+              R.int64Host R.>>>= \a7 ->
+              R.int64Host R.>>>= \a8 ->
+              R.int64Host R.>>>= \a9 ->
+              R.int64Host R.>>>= \a10 ->
+              R.int64Host R.>>>= \a11 ->
+              R.int64Host R.>>>= \a12 ->
+              R.int32Host R.>>>= \a13 ->
+              R.staticReturn $ a1 + a2 + a3 + a4
+                             + a5 + a6 + a7 + a8
+                             + a9 + a10 + a11 + a12
+                             + fromIntegral a13
+            {-# INLINE rGetter #-}
+
+            fixedReader = runIO $ R.staticRun rGetter
 
         bigVsLittleEndian = env setupEnv $ \ ~(buffer) ->
           bgroup "read 1G into 12 int64 + int32"

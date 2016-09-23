@@ -30,6 +30,7 @@ library
                      , Data.Shards.Ordered
                      , Data.Shards.Ordered.Internal
                      , Data.Vector.Utils
+                     , Graphomania.Algo.Dijkstra
                      , Graphomania.Convert
                      , Graphomania.Interactive
                      , Graphomania.Main
@@ -47,6 +48,7 @@ library
                      , bsp
                      , bytestring
                      , deepseq
+                     , free
                      , hashable
                      , hashtables
                      , indexed
