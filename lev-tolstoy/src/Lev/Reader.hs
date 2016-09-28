@@ -1,27 +1,23 @@
-{-# LANGUAGE BangPatterns        #-}
 {-# LANGUAGE DataKinds           #-}
 {-# LANGUAGE GADTs               #-}
 {-# LANGUAGE Rank2Types          #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeFamilies        #-}
-
-{-# LANGUAGE FlexibleContexts    #-}
+{-# LANGUAGE BangPatterns       #-}
 
 module Lev.Reader
   ( Reader
   , bindReader
   , unitReader
   , runReader
+  , tryRead
   , readPrim
   , readWord8
   , readInt16Host
   , readInt32Host
   , readInt64Host
   , readByteString
-
-  , printStatic
-  , printInt32
-  , printInt64
+  , dynRet
   ) where
 
 import           Control.Monad
@@ -32,12 +28,18 @@ import           Data.Int
 import           Data.Primitive
 import           Data.Proxy
 import           Data.Singletons
+import           Data.Singletons.Prelude.Num
 import           Data.Singletons.TypeLits
 import           Data.Word
 import           Foreign.ForeignPtr
 import           Foreign.ForeignPtr.Unsafe
 import           GHC.Exts
 import           Lev.Layout
+import Data.Either
+
+dynRet :: a ->  Reader m 'DynamicLayout a
+dynRet a = DynamicReader $ \s k -> k s a
+{-# INLINE dynRet #-}
 
 -- * Utility functions
 
@@ -49,13 +51,13 @@ moduleError fun msg = error (moduleErrorMsg fun msg)
 {-# NOINLINE moduleError #-}
 
 data Reader m (l :: Layout) a where
-  StaticReader :: (Addr -> m a) -> Reader m ('StaticLayout o s) a
-  DynamicReader :: (forall r . DynamicReaderState -> DynamicReaderCont m a r -> m (DynamicReaderResult m r)) -> Reader m 'DynamicLayout a
+  StaticReader :: !(Addr -> m a) -> Reader m ('StaticLayout o s) a
+  DynamicReader :: !(forall r . DynamicReaderState -> DynamicReaderCont m a r -> m (DynamicReaderResult m r)) -> Reader m 'DynamicLayout a
 
 type DynamicReaderState = ( ForeignPtr Word8, Addr, Int )
 
-data DynamicReaderResult m a = Done  !a
-                             | Fetch !Addr !Int !(DynamicReaderState -> m (DynamicReaderResult m a))
+data DynamicReaderResult m a = Done  a
+                             | Fetch !Addr !Int (DynamicReaderState -> m (DynamicReaderResult m a))
 -- Fetch protocol:
 -- Reader should only fetch when it reuqires more data than available in buffer.
 -- Driver should olways return no less data than was requested by buffer.
@@ -64,7 +66,8 @@ data DynamicReaderResult m a = Done  !a
 type DynamicReaderCont m a r = DynamicReaderState -> a -> m ( DynamicReaderResult m r )
 
 bindReader :: forall m la lb a b .
-      ( Monad m
+      ( BindLayoutInv la lb
+      , Monad m
       , SingI la
       , SingI lb )
      => Reader m la a
@@ -80,20 +83,30 @@ bindReader (StaticReader fa) k = case (sing :: Sing lb) of
           size = fromInteger (fromSing ssize)
           DynamicReader fa' = dynamicReader (off + size) $ const fa
       fa' s $ \s' a -> case k a of (DynamicReader fb) -> fb s' k'
+ -- связывание динамического ридера со статическим работает очень медленно,
+ -- при этом сами по себе динамические ридеры достаточно быстрые.
 bindReader (DynamicReader fa) k = case (sing :: Sing lb) of
   SStaticLayout soff ssize -> DynamicReader $ \s k' ->
-    fa s $ \s' a -> case k a of
-      (StaticReader fb) ->
-        let off = fromInteger (fromSing soff)
+    fa s $ \(base, addr, remains) a -> case k a of
+      (StaticReader fb) -> do
+        let off =  fromInteger (fromSing soff) -- тут офсет всегда равен 0, потому что это задано правилами связывания
             size = fromInteger (fromSing ssize)
-            DynamicReader fb' = dynamicReader (off + size) $ const fb
-        in fb' s' k'
+            len = off + size
+        if len <= remains
+          then fb addr >>= k' (base, addr `plusAddr` len, remains - len)
+          else return $ Fetch addr len $ \(base', addr', remains') -> fb addr' >>= k' (base', addr' `plusAddr` len, remains' - len)
+
+--    fa s $ \s' a -> case k a of
+--      (StaticReader fb) -> do
+--        let off =  fromInteger (fromSing soff) -- тут офсет всегда равен 0, потому что это задано правилами связывания
+--            size = fromInteger (fromSing ssize)
+--            DynamicReader fb' = dynamicReader (off + size) $ const fb
+--        fb' s' k'
   SDynamicLayout -> DynamicReader $ \s k' ->
     fa s $ \s' a -> case k a of (DynamicReader fb) -> fb s' k'
 {-# INLINE bindReader #-}
 
-unitReader :: forall m a o . ( Applicative m )
-             => a -> Reader m ('StaticLayout o 0) a
+unitReader :: (Applicative m) => a -> Reader m ('StaticLayout o 0) a
 unitReader = StaticReader . const . pure
 {-# INLINE unitReader #-}
 
@@ -117,7 +130,7 @@ runReader (DynamicReader f) b = withForeignPtr bPtr $ \(Ptr bAddr) -> do
     Done x -> return x
     Fetch addr req _ ->
       moduleError "runReader" $ "Buffer size = " ++ show bSize ++
-                                ", bytes required = " ++ show (req + (addr `minusAddr` Addr bAddr))
+                                ", bytes required = " ++ show (req + (addr `minusAddr` Addr bAddr) - bOff)
   where
     done (base, addr, remains) a = do
       let !(Ptr bAddr) = unsafeForeignPtrToPtr base
@@ -132,22 +145,6 @@ readPrim :: forall m o a . ( PrimMonad m , Prim a, KnownNat o ) => PrimReader m 
 readPrim = StaticReader $ \addr -> readOffAddr (addr `plusAddr` off) 0
   where off = fromInteger $ natVal (Proxy :: Proxy o)
 {-# INLINE readPrim #-}
-
-printStatic :: forall o a . ( KnownNat o, KnownNat (SizeOf a) )
-            => Reader IO ('StaticLayout o (SizeOf a)) (Proxy a)
-printStatic = StaticReader $ const $ do
-  let off = fromInteger $ natVal (Proxy :: Proxy o)
-      size = fromInteger $ natVal (Proxy :: Proxy (SizeOf a))
-  Prelude.putStrLn $ show off ++ ":" ++ show size
-  return (Proxy :: Proxy a)
-
-printInt32 :: forall o . ( KnownNat o )
-           => Reader IO ('StaticLayout o (SizeOf Int32)) (Proxy Int32)
-printInt32 = printStatic
-
-printInt64 :: forall o . ( KnownNat o )
-           => Reader IO ('StaticLayout o (SizeOf Int64)) (Proxy Int64)
-printInt64 = printStatic
 
 readWord8 :: forall m o . ( PrimMonad m, KnownNat o ) => PrimReader m o Word8
 readWord8 = readPrim
@@ -169,16 +166,32 @@ readInt64Host = readPrim
 {-# INLINE readInt64Host #-}
 
 dynamicReader :: forall m a . (Monad m) => Int -> (ForeignPtr Word8 -> Addr -> m a) -> Reader m 'DynamicLayout a
-dynamicReader len f = DynamicReader $ \s k -> do
+dynamicReader len f = DynamicReader $ \(base, addr, remains) k ->
+  if len <= remains
+    then f base addr >>= k (base, addr `plusAddr` len, remains - len)
+    else return $ Fetch addr len $ \(base', addr', remains') -> f base' addr' >>= k (base', addr' `plusAddr` len, remains' - len)
+{-
   let go (base, addr, remains) =
         if len <= remains
           then f base addr >>= k (base, addr `plusAddr` len, remains - len)
           else return $ Fetch addr len go
   go s
+-}
 {-# INLINE dynamicReader #-}
 
 readByteString :: Int -> Reader IO 'DynamicLayout ByteString
 readByteString len = dynamicReader len $ \base addr -> do
   let !(Ptr baseAddr) = unsafeForeignPtrToPtr base
-  return $ fromForeignPtr base (minusAddr addr (Addr baseAddr)) len
+  return $ fromForeignPtr base (addr `minusAddr` Addr baseAddr) len
 {-# INLINE readByteString #-}
+
+tryRead :: Reader m 'DynamicLayout (Either e a) -> Reader m 'DynamicLayout (Either e a)
+tryRead (DynamicReader f) = DynamicReader $ \s k ->
+  f s $ \s' a -> k (if isRight a then s' else s) a
+{-# INLINE tryRead #-}
+
+-- для парсинга можно использовать функцию look-ahead. Она должна позволять запустить
+-- декодер, который возвращает некоторый результат, но не поглощает входной поток.
+
+-- из tryRead-ов можно сделать alternative. Но только из tryRead, а не из произвольного типа
+-- поэтому лучше завернуть в newtype.

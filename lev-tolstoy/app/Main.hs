@@ -1,42 +1,83 @@
 {-# LANGUAGE DataKinds             #-}
 {-# LANGUAGE FlexibleContexts      #-}
+{-# LANGUAGE NoImplicitPrelude     #-}
 {-# LANGUAGE PartialTypeSignatures #-}
+{-# LANGUAGE RebindableSyntax      #-}
 {-# LANGUAGE TypeFamilies          #-}
 {-# LANGUAGE TypeOperators         #-}
 
 module Main where
 
---import           Control.Monad
---import           Control.Monad.Indexed
 import qualified Data.ByteString as BS
 import           Data.Int
---import           GHC.TypeLits
-import           Control.Monad
 import           Lev.Layout      as L
-import qualified Lev.Monad       as L
+import           Lev.Monad       as L
 import qualified Lev.Reader      as L
+import           Prelude         hiding (Monad (..))
+import qualified Prelude         as P
 
---test_d :: IO (Int32, ByteString)
---test_d = run testLevRead (BS.replicate 16 0)
+read12Int64PlusInt32 :: Reader IO ('StaticLayout 0 100) Int64
+read12Int64PlusInt32 = do
+  a1 <- readInt64Host
+  a2 <- readInt64Host
+  a3 <- readInt64Host
+  a4 <- readInt64Host
+  a5 <- readInt64Host
+  a6 <- readInt64Host
+  a7 <- readInt64Host
+  a8 <- readInt64Host
+  a9 <- readInt64Host
+  a10 <- readInt64Host
+  a11 <- readInt64Host
+  a12 <- readInt64Host
+  a13 <- readInt32Host
+  return $ a1 + a2 + a3 + a4
+         + a5 + a6 + a7 + a8
+         + a9 + a10 + a11 + a12
+         + fromIntegral a13
+{-# INLINE read12Int64PlusInt32 #-}
 
-rGetter :: L.Reader IO ('L.StaticLayout 0 32) Int64
-rGetter =
-  L.readInt64Host L.>>= \a1 ->
-  L.readInt64Host L.>>= \a2 ->
-  L.readInt64Host L.>>= \a3 ->
-  L.readInt64Host L.>>= \a4 ->
-  L.return $ a1 + a2 + a3 + a4
-{-# INLINE rGetter #-}
 
-rGetter1 :: L.Reader IO ('L.StaticLayout 4 8) ()
-rGetter1 =
-  L.printInt64 L.>>= \_ ->
-  L.return ()
-{-# INLINE rGetter1 #-}
+read4Strings :: Reader IO 'DynamicLayout Int
+read4Strings = do
+  a1 <- readWord8
+  b1 <- readByteString (fromIntegral a1)
+  a2 <- readWord8
+  b2 <- readByteString (fromIntegral a2)
+  a3 <- readWord8
+  b3 <- readByteString (fromIntegral a3)
+  a4 <- readWord8
+  b4 <- readByteString (fromIntegral a4)
+  return (BS.length b1 + BS.length b2 + BS.length b3 + BS.length b4)
+{-# INLINE read4Strings #-}
+
+read4StringsDyn :: Reader IO 'DynamicLayout Int
+read4StringsDyn = do
+  a1 <- readWord8
+  b1 <- readByteString (fromIntegral a1)
+  a2 <- readWord8
+  b2 <- readByteString (fromIntegral a2)
+  a3 <- readWord8
+  b3 <- readByteString (fromIntegral a3)
+  a4 <- readWord8
+  b4 <- readByteString (fromIntegral a4)
+  dynRet (BS.length b1 + BS.length b2 + BS.length b3 + BS.length b4)
+{-# INLINE read4StringsDyn #-}
+
+testStat :: L.Reader IO 'L.DynamicLayout Int
+testStat =
+  L.readByteString 666 L.>>= \a ->
+  L.return (BS.length a)
+
+testDyn :: L.Reader IO 'L.DynamicLayout Int
+testDyn =
+  L.readByteString 555 L.>>= \a ->
+  L.dynRet (BS.length a)
+
 
 main :: IO ()
-main = do
-  putStrLn "test"
-  L.runReader rGetter1 $ BS.replicate 100 0
-  return ()
---  void $ test_d
+main = -- do
+  -- (a, _) <- L.runReader testDyn $ BS.replicate 999 0
+  -- (b, _) <- L.runReader testDyn $ BS.replicate 999 0
+  -- print ( a + b + 777 )
+  P.return ()

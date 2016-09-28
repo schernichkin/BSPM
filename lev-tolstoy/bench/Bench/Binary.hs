@@ -1,11 +1,12 @@
 module Bench.Binary (
     runBinaryGetStrict
   , read12Int64PlusInt32
+  , read4Strings
   , module X
   ) where
 
 import           Data.Binary.Get as X
-import           Data.ByteString
+import           Data.ByteString as BS
 import           Data.Int
 
 {-# INLINE runBinaryGetStrict #-}
@@ -37,3 +38,16 @@ read12Int64PlusInt32 = do
          + a5 + a6 + a7 + a8
          + a9 + a10 + a11 + a12
          + fromIntegral a13
+
+read4Strings :: Get Int
+read4Strings = do
+  a1 <- getWord8
+  b1 <- getByteString (fromIntegral a1)
+  a2 <- getWord8
+  b2 <- getByteString (fromIntegral a2)
+  a3 <- getWord8
+  b3 <- getByteString (fromIntegral a3)
+  a4 <- getWord8
+  b4 <- getByteString (fromIntegral a4)
+  return (BS.length b1 + BS.length b2 + BS.length b3 + BS.length b4)
+{-# INLINE read4Strings #-}

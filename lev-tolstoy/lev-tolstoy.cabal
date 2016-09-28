@@ -25,6 +25,8 @@ library
                      , ghc-prim
                      , primitive
                      , singletons
+                     -- for CSV
+                     , vector
   default-language:    Haskell2010
   ghc-options:         -Wall -O2 -funbox-strict-fields
 
@@ -32,7 +34,7 @@ library
 executable lev-tolstoy
   hs-source-dirs:      app
   main-is:             Main.hs
-  ghc-options:         -Wall -O2 -funbox-strict-fields -ddump-cmm -ddump-asm
+  ghc-options:         -Wall -O2 -ddump-simpl -ddump-cmm -ddump-asm -ddump-rule-rewrites
   build-depends:       base
                      , bytestring
                      , ghc-prim
@@ -71,7 +73,7 @@ benchmark lev-tolstoy-bench
                      , ghc-prim
                      , primitive
   default-language:    Haskell2010
-  ghc-options:         -Wall -O2 -funbox-strict-fields -main-is Bench.main
+  ghc-options:         -Wall -O2 -funbox-strict-fields -fmax-simplifier-iterations=5 -ddump-rule-firings -main-is Bench.main
 
 source-repository head
   type:     git

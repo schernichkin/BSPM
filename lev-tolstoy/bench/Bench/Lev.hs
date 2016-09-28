@@ -4,16 +4,16 @@
 
 module Bench.Lev (
     read12Int64PlusInt32
+  , read4Strings
+  , read4StringsDyn
   , module X
   ) where
 
 import qualified Data.ByteString as BS
 import           Data.Int
-import           Data.Word
 import           Lev.Monad       as X
 import           Prelude         hiding (Monad (..))
 
-{-# INLINE read12Int64PlusInt32 #-}
 read12Int64PlusInt32 :: Reader IO ('StaticLayout 0 100) Int64
 read12Int64PlusInt32 = do
   a1 <- readInt64Host
@@ -33,6 +33,30 @@ read12Int64PlusInt32 = do
          + a5 + a6 + a7 + a8
          + a9 + a10 + a11 + a12
          + fromIntegral a13
+{-# INLINE read12Int64PlusInt32 #-}
 
-read4Strings :: Reader IO 'DynamicLayout BS.ByteString
-read4Strings = readByteString 11 >>= \_ -> readByteString 12 
+read4Strings :: Reader IO 'DynamicLayout Int
+read4Strings = do
+  a1 <- readWord8
+  b1 <- readByteString (fromIntegral a1)
+  a2 <- readWord8
+  b2 <- readByteString (fromIntegral a2)
+  a3 <- readWord8
+  b3 <- readByteString (fromIntegral a3)
+  a4 <- readWord8
+  b4 <- readByteString (fromIntegral a4)
+  return (BS.length b1 + BS.length b2 + BS.length b3 + BS.length b4)
+{-# INLINE read4Strings #-}
+
+read4StringsDyn :: Reader IO 'DynamicLayout Int
+read4StringsDyn = do
+  a1 <- readWord8
+  b1 <- readByteString (fromIntegral a1)
+  a2 <- readWord8
+  b2 <- readByteString (fromIntegral a2)
+  a3 <- readWord8
+  b3 <- readByteString (fromIntegral a3)
+  a4 <- readWord8
+  b4 <- readByteString (fromIntegral a4)
+  dynRet (BS.length b1 + BS.length b2 + BS.length b3 + BS.length b4)
+{-# INLINE read4StringsDyn #-}

@@ -50,9 +50,7 @@ library
                      , deepseq
                      , free
                      , hashable
-                     , hashtables
-                     , indexed
-                     , keys
+                     , hashtables                     , keys
                      , lens
                      , lev-tolstoy
                      , mono-traversable

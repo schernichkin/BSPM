@@ -7,6 +7,7 @@ import qualified Bench.Lev         as L
 import           Criterion.Main
 import           Data.ByteString   as BS
 import           Data.Int
+import           Data.Word
 
 readerBench :: Benchmark
 readerBench = bgroup "reader" [ strict ]
@@ -19,8 +20,8 @@ readerBench = bgroup "reader" [ strict ]
       where
         read1Ginto12Int64plusInt32 = env setupEnv $ \ ~buffer ->
           bgroup "read 1G into 12 int64 + int32"
-          [ bench "Lev" $ nfIO $ levReader buffer
-          , bench "Handwritten" $ nf handwritten buffer
+          [
+            bench "Handwritten" $ nf handwritten buffer, bench "Lev" $ nfIO $ levReader buffer
           -- , bench "Binary" $ nf binary buffer
           -- , bench "Cereal" $ nf cereal buffer
           ]
@@ -89,13 +90,14 @@ readerBench = bgroup "reader" [ strict ]
             {-# INLINE run #-}
 
         byteStrings = env setupEnv $ \ ~buffer ->
-          bgroup "read 1G into 4x25byte strings"
-          [ -- bench "lev big-endian" $ nf bigEndian buffer
-            -- ,  bench "lev little-endian" $ nf littleEndian buffer
+          bgroup "read 100M into 4x25byte strings"
+          [ bench "Lev" $ nfIO $ levReader buffer
+          , bench "Lev2" $ nfIO $ (runIO $ L.runReader L.read4StringsDyn) buffer
+          -- ,  bench "Binary" $ nf binary buffer
           ]
           where
             bufferSize :: Int
-            bufferSize = 1000000000
+            bufferSize = 100000000
             {-# INLINE bufferSize #-}
 
             iterations :: Int
@@ -105,8 +107,32 @@ readerBench = bgroup "reader" [ strict ]
             setupEnv :: IO ByteString
             setupEnv = return $ fst $ BS.unfoldrN bufferSize f 0
               where
-                f 0 = Just (25, 25)
+                f :: Int -> Maybe (Word8, Int)
+                f 0 = Just (24, 24)
                 f x = Just (0, x - 1)
+
+            run :: (ByteString -> (Int, ByteString)) -> ByteString -> Int
+            run f = go 0 iterations
+              where
+                go a 0 _ = a
+                go a n s = let (a', s') = f s in go (a + a') (n - 1) s'
+            {-# INLINE run #-}
+
+            {-# INLINE runIO #-}
+            runIO :: (ByteString -> IO (Int, ByteString)) -> ByteString -> IO Int
+            runIO f = go 0 iterations
+              where
+                go a 0 _ = return a
+                go a n s = do
+                  (a', s') <- f s
+                  go (a + a') (n - 1) s'
+
+            {-# NOINLINE levReader #-}
+            levReader = runIO $ L.runReader L.read4Strings
+
+            {-# NOINLINE binary #-}
+            binary = run $ B.runBinaryGetStrict B.read4Strings
+
 
 writerBench :: Benchmark
 writerBench = bgroup "Writer" [ strict ]

@@ -16,7 +16,7 @@ import           GHC.Exts
 #include "MachDeps.h"
 
 type family SizeOf a :: Nat
-type instance SizeOf Word8 = 1
+type instance SizeOf Word8 = SIZEOF_WORD8
 type instance SizeOf Int16 = SIZEOF_INT16
 type instance SizeOf Int32 = SIZEOF_INT32
 type instance SizeOf Int64 = SIZEOF_INT64
@@ -24,7 +24,8 @@ type instance SizeOf Int64 = SIZEOF_INT64
 type Size   = Nat
 type Offset = Nat
 
-data Layout = DynamicLayout | StaticLayout Offset Size
+data Layout = StaticLayout Offset Size
+            | DynamicLayout
 
 data instance Sing (a :: Layout) where
   SDynamicLayout :: Sing 'DynamicLayout
@@ -32,11 +33,11 @@ data instance Sing (a :: Layout) where
 
 instance (SingI offset, SingI size) => SingI ('StaticLayout offset size) where
   sing = SStaticLayout sing sing
+  {-# INLINE sing #-}
 
 instance SingI 'DynamicLayout where
   sing = SDynamicLayout
-
-type UnitLayout o = 'StaticLayout o 0
+  {-# INLINE sing #-}
 
 type family BindLayout (a :: Layout) (b :: Layout) :: Layout where
   BindLayout ('StaticLayout o1 s1) ('StaticLayout o2 s2) = 'StaticLayout o1 (s1 :+ s2)
@@ -44,4 +45,6 @@ type family BindLayout (a :: Layout) (b :: Layout) :: Layout where
 
 type family BindLayoutInv (a :: Layout) (b :: Layout) :: Constraint where
   BindLayoutInv ('StaticLayout o1 s1) ('StaticLayout o2 s2) = ((o1 :+ s1) ~ o2)
+  BindLayoutInv ('StaticLayout o s) 'DynamicLayout = (o ~ 0)
+  BindLayoutInv 'DynamicLayout ('StaticLayout o s) = (o ~ 0)
   BindLayoutInv _ _ = ()
