@@ -9,21 +9,12 @@ packages:
 - graphomania
 - offheap
 - lev-tolstoy
-- location:
-    git: https://github.com/pseudonom/indexed.git
-    commit: 92480dd5992c43735de06e36d625f360ab9aa70a
-  extra-dep: true
-- location:
-    git: https://github.com/dorchard/effect-monad.git
-    commit: b108b598606e5c487418e2069fdc3857563e327c
-  extra-dep: true
 
 # Packages to be pulled from upstream that are not in the resolver (e.g., acme-missiles-0.3)
 extra-deps:
-  - timeit-1.0.0.0
-  - binary-0.8.4.0
-  - type-level-sets-0.7
-
+#  - timeit-1.0.0.0
+  - binary-0.8.4.1
+#  - type-level-sets-0.7
 
 # Override default flag values for local packages and extra-deps
 flags: {}
